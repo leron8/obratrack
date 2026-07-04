@@ -1,0 +1,554 @@
+erDiagram
+  COMPANIES {
+    uuid id PK
+    text name
+    text rfc
+    text currency
+    company_status status
+  }
+
+  PROFILES {
+    uuid id PK
+    uuid company_id FK
+    user_role role
+    text email
+  }
+
+  BUSINESS_PARTNERS {
+    uuid id PK
+    uuid company_id FK
+    partner_type partner_type
+    text name
+    text rfc
+  }
+
+  PROJECTS {
+    uuid id PK
+    uuid company_id FK
+    uuid client_id FK
+    text code
+    text name
+    project_status status
+    numeric budget
+  }
+
+  PROJECT_ALIASES {
+    uuid id PK
+    uuid company_id FK
+    uuid project_id FK
+    text alias
+  }
+
+  EMPLOYEES {
+    uuid id PK
+    uuid company_id FK
+    text employee_code
+    worker_type worker_type
+    text full_name
+    employee_status status
+  }
+
+  PROJECT_WORKERS {
+    uuid id PK
+    uuid company_id FK
+    uuid project_id FK
+    uuid employee_id FK
+    date assigned_at
+  }
+
+  VEHICLES {
+    uuid id PK
+    uuid company_id FK
+    uuid default_project_id FK
+    uuid responsible_employee_id FK
+    text plate
+    text vin
+    text model_name
+  }
+
+  VEHICLE_ASSIGNMENTS {
+    uuid id PK
+    uuid company_id FK
+    uuid vehicle_id FK
+    uuid project_id FK
+    uuid employee_id FK
+    date assigned_at
+  }
+
+  VEHICLE_INSURANCE_POLICIES {
+    uuid id PK
+    uuid company_id FK
+    uuid vehicle_id FK
+    uuid account_movement_id FK
+    text insurer
+    text policy_number
+    date expires_on
+  }
+
+  EXPENSE_CATEGORIES {
+    uuid id PK
+    uuid company_id FK
+    uuid parent_id FK
+    text code
+    text name
+    text classification
+  }
+
+  COST_CENTERS {
+    uuid id PK
+    uuid company_id FK
+    text code
+    text name
+  }
+
+  ITEMS {
+    uuid id PK
+    uuid company_id FK
+    uuid default_expense_category_id FK
+    uuid default_supplier_id FK
+    text sku
+    text name
+    item_type item_type
+    text unit
+    numeric default_unit_cost
+  }
+
+  FINANCIAL_ACCOUNTS {
+    uuid id PK
+    uuid company_id FK
+    uuid owner_employee_id FK
+    account_type account_type
+    text name
+    numeric opening_balance
+  }
+
+  ACCOUNT_TRANSFERS {
+    uuid id PK
+    uuid company_id FK
+    uuid from_account_id FK
+    uuid to_account_id FK
+    date transfer_date
+    numeric amount
+  }
+
+  ACCOUNT_MOVEMENTS {
+    uuid id PK
+    uuid company_id FK
+    uuid account_id FK
+    uuid transfer_id FK
+    uuid business_partner_id FK
+    uuid employee_id FK
+    uuid project_id FK
+    uuid vehicle_id FK
+    uuid expense_category_id FK
+    uuid cost_center_id FK
+    money_direction direction
+    money_movement_kind movement_kind
+    numeric amount
+    date movement_date
+    boolean is_internal_transfer
+  }
+
+  BANK_CHECKS {
+    uuid id PK
+    uuid company_id FK
+    uuid account_id FK
+    uuid account_movement_id FK
+    uuid payroll_run_id FK
+    uuid payee_partner_id FK
+    uuid payee_employee_id FK
+    text check_number
+    check_status status
+    numeric amount
+  }
+
+  TRANSACTION_ALLOCATIONS {
+    uuid id PK
+    uuid company_id FK
+    uuid account_movement_id FK
+    uuid project_id FK
+    uuid cost_center_id FK
+    uuid expense_category_id FK
+    uuid vehicle_id FK
+    uuid employee_id FK
+    numeric amount
+    allocation_basis allocation_basis
+  }
+
+  SUPPLIER_CREDIT_ACCOUNTS {
+    uuid id PK
+    uuid company_id FK
+    uuid supplier_id FK
+    text name
+    numeric credit_limit
+    int terms_days
+  }
+
+  FINANCIAL_DOCUMENTS {
+    uuid id PK
+    uuid company_id FK
+    uuid business_partner_id FK
+    uuid employee_id FK
+    uuid project_id FK
+    uuid supplier_credit_account_id FK
+    document_direction document_direction
+    document_type document_type
+    document_status status
+    text document_number
+    date issue_date
+    date due_date
+    numeric total_amount
+  }
+
+  FINANCIAL_DOCUMENT_LINES {
+    uuid id PK
+    uuid company_id FK
+    uuid document_id FK
+    uuid item_id FK
+    uuid project_id FK
+    uuid expense_category_id FK
+    uuid cost_center_id FK
+    text description
+    numeric quantity
+    numeric total_amount
+  }
+
+  DOCUMENT_PAYMENT_APPLICATIONS {
+    uuid id PK
+    uuid company_id FK
+    uuid document_id FK
+    uuid account_movement_id FK
+    numeric applied_amount
+    date applied_date
+  }
+
+  DOCUMENT_APPLICATIONS {
+    uuid id PK
+    uuid company_id FK
+    uuid source_document_id FK
+    uuid target_document_id FK
+    text application_type
+    numeric applied_amount
+  }
+
+  PAYROLL_RUNS {
+    uuid id PK
+    uuid company_id FK
+    text run_number
+    int week_number
+    date period_start
+    date period_end
+    payroll_status status
+  }
+
+  PAYROLL_LINES {
+    uuid id PK
+    uuid company_id FK
+    uuid payroll_run_id FK
+    uuid employee_id FK
+    uuid project_id FK
+    uuid cost_center_id FK
+    uuid account_movement_id FK
+    numeric gross_amount
+    numeric loan_deduction_amount
+    numeric net_amount
+  }
+
+  EMPLOYEE_LOANS {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_id FK
+    uuid source_account_id FK
+    uuid disbursement_movement_id FK
+    date loan_date
+    numeric principal_amount
+    loan_status status
+  }
+
+  EMPLOYEE_LOAN_PAYMENTS {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_loan_id FK
+    uuid payroll_line_id FK
+    uuid account_movement_id FK
+    numeric amount
+    loan_payment_method method
+  }
+
+  PARTNER_LOANS {
+    uuid id PK
+    uuid company_id FK
+    uuid partner_id FK
+    uuid source_account_id FK
+    uuid disbursement_movement_id FK
+    loan_direction loan_direction
+    numeric principal_amount
+    loan_status status
+  }
+
+  PARTNER_LOAN_PAYMENTS {
+    uuid id PK
+    uuid company_id FK
+    uuid partner_loan_id FK
+    uuid account_movement_id FK
+    numeric amount
+  }
+
+  FUEL_CARDS {
+    uuid id PK
+    uuid company_id FK
+    uuid account_id FK
+    uuid vehicle_id FK
+    uuid employee_id FK
+    text provider
+    text card_number
+  }
+
+  FUEL_STATIONS {
+    uuid id PK
+    uuid company_id FK
+    text provider
+    text station_code
+    text name
+    text city
+  }
+
+  FUEL_TRANSACTIONS {
+    uuid id PK
+    uuid company_id FK
+    uuid account_movement_id FK
+    uuid fuel_card_id FK
+    uuid vehicle_id FK
+    uuid employee_id FK
+    uuid project_id FK
+    uuid station_id FK
+    text external_transaction_number
+    fuel_product product
+    numeric liters
+    numeric gross_amount
+    numeric allocated_amount
+    numeric odometer
+    numeric km_per_liter
+    int week_number
+    boolean is_garrafas
+  }
+
+  RECURRING_OBLIGATIONS {
+    uuid id PK
+    uuid company_id FK
+    uuid payment_account_id FK
+    uuid expense_category_id FK
+    text name
+    date next_due_date
+    numeric expected_amount
+  }
+
+  WHATSAPP_CONTACTS {
+    uuid id PK
+    uuid company_id FK
+    uuid employee_id FK
+    uuid business_partner_id FK
+    uuid default_account_id FK
+    uuid default_project_id FK
+    text phone_number
+    text display_name
+    boolean is_active
+  }
+
+  WHATSAPP_MESSAGES {
+    uuid id PK
+    uuid company_id FK
+    uuid contact_id FK
+    text twilio_message_sid
+    whatsapp_message_direction direction
+    whatsapp_message_kind message_kind
+    text from_number
+    text to_number
+    text body
+    text media_url
+    text transcript
+    jsonb raw_payload
+  }
+
+  WHATSAPP_CAPTURE_DRAFTS {
+    uuid id PK
+    uuid company_id FK
+    uuid contact_id FK
+    uuid source_message_id FK
+    uuid confirmation_message_id FK
+    uuid account_id FK
+    uuid business_partner_id FK
+    uuid employee_id FK
+    uuid project_id FK
+    uuid vehicle_id FK
+    uuid expense_category_id FK
+    uuid cost_center_id FK
+    uuid account_movement_id FK
+    uuid financial_document_id FK
+    uuid payroll_line_id FK
+    uuid fuel_transaction_id FK
+    uuid employee_loan_id FK
+    uuid partner_loan_id FK
+    whatsapp_capture_status status
+    whatsapp_capture_target target_type
+    jsonb parsed_payload
+    numeric amount
+    text description
+  }
+
+  SOURCE_IMPORTS {
+    uuid id PK
+    uuid company_id FK
+    import_source_type source_type
+    text source_name
+    text file_name
+    import_status status
+  }
+
+  IMPORT_ROWS {
+    uuid id PK
+    uuid company_id FK
+    uuid source_import_id FK
+    text sheet_name
+    int row_number
+    jsonb raw_data
+  }
+
+  ATTACHMENTS {
+    uuid id PK
+    uuid company_id FK
+    uuid account_movement_id FK
+    uuid document_id FK
+    uuid fuel_transaction_id FK
+    text file_name
+    text storage_path
+  }
+
+  COMPANIES ||--o{ PROFILES : has
+  COMPANIES ||--o{ BUSINESS_PARTNERS : has
+  COMPANIES ||--o{ PROJECTS : has
+  COMPANIES ||--o{ EMPLOYEES : has
+  COMPANIES ||--o{ VEHICLES : has
+  COMPANIES ||--o{ ITEMS : has
+  COMPANIES ||--o{ FINANCIAL_ACCOUNTS : has
+  COMPANIES ||--o{ ACCOUNT_MOVEMENTS : has
+  COMPANIES ||--o{ FINANCIAL_DOCUMENTS : has
+  COMPANIES ||--o{ PAYROLL_RUNS : has
+  COMPANIES ||--o{ FUEL_TRANSACTIONS : has
+  COMPANIES ||--o{ WHATSAPP_CONTACTS : has
+  COMPANIES ||--o{ WHATSAPP_MESSAGES : has
+  COMPANIES ||--o{ WHATSAPP_CAPTURE_DRAFTS : has
+  COMPANIES ||--o{ SOURCE_IMPORTS : has
+
+  BUSINESS_PARTNERS ||--o{ PROJECTS : client
+  BUSINESS_PARTNERS ||--o{ SUPPLIER_CREDIT_ACCOUNTS : supplier
+  BUSINESS_PARTNERS ||--o{ FINANCIAL_DOCUMENTS : counterparty
+  BUSINESS_PARTNERS ||--o{ ACCOUNT_MOVEMENTS : counterparty
+  BUSINESS_PARTNERS ||--o{ ITEMS : default_supplier
+  BUSINESS_PARTNERS ||--o{ BANK_CHECKS : payee
+  BUSINESS_PARTNERS ||--o{ WHATSAPP_CONTACTS : linked_contact
+  BUSINESS_PARTNERS ||--o{ WHATSAPP_CAPTURE_DRAFTS : parsed_counterparty
+  BUSINESS_PARTNERS ||--o{ PARTNER_LOANS : lender_or_borrower
+
+  PROJECTS ||--o{ PROJECT_ALIASES : has
+  PROJECTS ||--o{ PROJECT_WORKERS : has
+  PROJECTS ||--o{ VEHICLE_ASSIGNMENTS : receives
+  PROJECTS ||--o{ ACCOUNT_MOVEMENTS : direct
+  PROJECTS ||--o{ TRANSACTION_ALLOCATIONS : allocated
+  PROJECTS ||--o{ FINANCIAL_DOCUMENTS : related
+  PROJECTS ||--o{ PAYROLL_LINES : payroll
+  PROJECTS ||--o{ FUEL_TRANSACTIONS : fuel
+  PROJECTS ||--o{ WHATSAPP_CONTACTS : default_project
+  PROJECTS ||--o{ WHATSAPP_CAPTURE_DRAFTS : parsed_project
+
+  EMPLOYEES ||--o{ PROJECT_WORKERS : assigned
+  EMPLOYEES ||--o{ VEHICLE_ASSIGNMENTS : driver
+  EMPLOYEES ||--o{ FINANCIAL_ACCOUNTS : owns_card
+  EMPLOYEES ||--o{ ACCOUNT_MOVEMENTS : related
+  EMPLOYEES ||--o{ BANK_CHECKS : payee
+  EMPLOYEES ||--o{ PAYROLL_LINES : paid
+  EMPLOYEES ||--o{ EMPLOYEE_LOANS : receives
+  EMPLOYEES ||--o{ FUEL_CARDS : assigned
+  EMPLOYEES ||--o{ FUEL_TRANSACTIONS : driver
+  EMPLOYEES ||--o{ WHATSAPP_CONTACTS : linked_contact
+  EMPLOYEES ||--o{ WHATSAPP_CAPTURE_DRAFTS : parsed_employee
+
+  VEHICLES ||--o{ VEHICLE_ASSIGNMENTS : assigned
+  VEHICLES ||--o{ VEHICLE_INSURANCE_POLICIES : insured
+  VEHICLES ||--o{ ACCOUNT_MOVEMENTS : related
+  VEHICLES ||--o{ TRANSACTION_ALLOCATIONS : allocated
+  VEHICLES ||--o{ FUEL_CARDS : uses
+  VEHICLES ||--o{ FUEL_TRANSACTIONS : consumes
+  VEHICLES ||--o{ WHATSAPP_CAPTURE_DRAFTS : parsed_vehicle
+
+  EXPENSE_CATEGORIES ||--o{ EXPENSE_CATEGORIES : parent
+  EXPENSE_CATEGORIES ||--o{ ACCOUNT_MOVEMENTS : classifies
+  EXPENSE_CATEGORIES ||--o{ ITEMS : default_category
+  EXPENSE_CATEGORIES ||--o{ TRANSACTION_ALLOCATIONS : classifies
+  EXPENSE_CATEGORIES ||--o{ FINANCIAL_DOCUMENT_LINES : classifies
+  EXPENSE_CATEGORIES ||--o{ RECURRING_OBLIGATIONS : classifies
+  EXPENSE_CATEGORIES ||--o{ WHATSAPP_CAPTURE_DRAFTS : parsed_category
+
+  COST_CENTERS ||--o{ ACCOUNT_MOVEMENTS : classifies
+  COST_CENTERS ||--o{ TRANSACTION_ALLOCATIONS : classifies
+  COST_CENTERS ||--o{ PAYROLL_LINES : classifies
+  COST_CENTERS ||--o{ FINANCIAL_DOCUMENT_LINES : classifies
+  COST_CENTERS ||--o{ WHATSAPP_CAPTURE_DRAFTS : parsed_cost_center
+
+  FINANCIAL_ACCOUNTS ||--o{ ACCOUNT_MOVEMENTS : posts
+  FINANCIAL_ACCOUNTS ||--o{ BANK_CHECKS : owns
+  FINANCIAL_ACCOUNTS ||--o{ ACCOUNT_TRANSFERS : from
+  FINANCIAL_ACCOUNTS ||--o{ ACCOUNT_TRANSFERS : to
+  FINANCIAL_ACCOUNTS ||--o{ FUEL_CARDS : backs
+  FINANCIAL_ACCOUNTS ||--o{ RECURRING_OBLIGATIONS : pays
+  FINANCIAL_ACCOUNTS ||--o{ WHATSAPP_CONTACTS : default_account
+  FINANCIAL_ACCOUNTS ||--o{ WHATSAPP_CAPTURE_DRAFTS : parsed_account
+
+  ACCOUNT_TRANSFERS ||--o{ ACCOUNT_MOVEMENTS : creates
+  ACCOUNT_MOVEMENTS ||--o{ TRANSACTION_ALLOCATIONS : split_by_project
+  ACCOUNT_MOVEMENTS ||--o{ BANK_CHECKS : clears
+  ACCOUNT_MOVEMENTS ||--o{ DOCUMENT_PAYMENT_APPLICATIONS : pays
+  ACCOUNT_MOVEMENTS ||--o{ PAYROLL_LINES : pays
+  ACCOUNT_MOVEMENTS ||--o{ FUEL_TRANSACTIONS : backs
+  ACCOUNT_MOVEMENTS ||--o{ EMPLOYEE_LOANS : disburses
+  ACCOUNT_MOVEMENTS ||--o{ EMPLOYEE_LOAN_PAYMENTS : recovers
+  ACCOUNT_MOVEMENTS ||--o{ PARTNER_LOANS : disburses
+  ACCOUNT_MOVEMENTS ||--o{ PARTNER_LOAN_PAYMENTS : repays
+  ACCOUNT_MOVEMENTS ||--o{ ATTACHMENTS : has
+  ACCOUNT_MOVEMENTS ||--o{ WHATSAPP_CAPTURE_DRAFTS : confirmed_from
+
+  SUPPLIER_CREDIT_ACCOUNTS ||--o{ FINANCIAL_DOCUMENTS : groups
+  ITEMS ||--o{ FINANCIAL_DOCUMENT_LINES : used_in
+  FINANCIAL_DOCUMENTS ||--o{ FINANCIAL_DOCUMENT_LINES : contains
+  FINANCIAL_DOCUMENTS ||--o{ DOCUMENT_PAYMENT_APPLICATIONS : paid_by
+  FINANCIAL_DOCUMENTS ||--o{ DOCUMENT_APPLICATIONS : source
+  FINANCIAL_DOCUMENTS ||--o{ DOCUMENT_APPLICATIONS : target
+  FINANCIAL_DOCUMENTS ||--o{ ATTACHMENTS : has
+  FINANCIAL_DOCUMENTS ||--o{ WHATSAPP_CAPTURE_DRAFTS : confirmed_from
+
+  PAYROLL_RUNS ||--o{ PAYROLL_LINES : contains
+  PAYROLL_RUNS ||--o{ BANK_CHECKS : paid_with
+  PAYROLL_LINES ||--o{ EMPLOYEE_LOAN_PAYMENTS : discounts
+  PAYROLL_LINES ||--o{ WHATSAPP_CAPTURE_DRAFTS : confirmed_from
+  EMPLOYEE_LOANS ||--o{ EMPLOYEE_LOAN_PAYMENTS : paid_by
+  EMPLOYEE_LOANS ||--o{ WHATSAPP_CAPTURE_DRAFTS : confirmed_from
+  PARTNER_LOANS ||--o{ PARTNER_LOAN_PAYMENTS : paid_by
+  PARTNER_LOANS ||--o{ WHATSAPP_CAPTURE_DRAFTS : confirmed_from
+
+  FUEL_CARDS ||--o{ FUEL_TRANSACTIONS : used_by
+  FUEL_STATIONS ||--o{ FUEL_TRANSACTIONS : sold
+  FUEL_TRANSACTIONS ||--o{ ATTACHMENTS : has
+  FUEL_TRANSACTIONS ||--o{ WHATSAPP_CAPTURE_DRAFTS : confirmed_from
+
+  WHATSAPP_CONTACTS ||--o{ WHATSAPP_MESSAGES : sends
+  WHATSAPP_CONTACTS ||--o{ WHATSAPP_CAPTURE_DRAFTS : owns
+  WHATSAPP_MESSAGES ||--o{ WHATSAPP_CAPTURE_DRAFTS : source
+  WHATSAPP_MESSAGES ||--o{ WHATSAPP_CAPTURE_DRAFTS : confirmation
+
+  SOURCE_IMPORTS ||--o{ IMPORT_ROWS : contains
+  SOURCE_IMPORTS ||--o{ ACCOUNT_MOVEMENTS : creates
+  SOURCE_IMPORTS ||--o{ FINANCIAL_DOCUMENTS : creates
+  SOURCE_IMPORTS ||--o{ FUEL_TRANSACTIONS : creates
+  IMPORT_ROWS ||--o{ ACCOUNT_MOVEMENTS : source_row
+  IMPORT_ROWS ||--o{ FINANCIAL_DOCUMENTS : source_row
+  IMPORT_ROWS ||--o{ FUEL_TRANSACTIONS : source_row

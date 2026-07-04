@@ -1,0 +1,19 @@
+erDiagram
+  COMPANIES ||--o{ ACCOUNTS : has
+  COMPANIES ||--o{ TRANSACTIONS : has
+  COMPANIES ||--o{ TRANSFERS : has
+  COMPANIES ||--o{ EXPENSE_CATEGORIES : has
+  COMPANIES ||--o{ COST_CENTERS : has
+  COMPANIES ||--o{ ALLOCATION_RULES : has
+  COMPANIES ||--o{ COST_ALLOCATIONS : has
+  ACCOUNTS ||--o{ TRANSFERS : "from/to"
+  TRANSACTIONS }o--|| ACCOUNTS : "account_id"
+  TRANSACTIONS }o--|| PROJECTS : "project_id"
+  TRANSACTIONS }o--|| SUPPLIERS : "supplier_id"
+  TRANSACTIONS }o--|| CLIENTS : "client_id"
+  TRANSACTIONS }o--|| EMPLOYEES : "employee_id"
+  TRANSACTIONS }o--|| VEHICLES : "vehicle_id"
+  TRANSACTIONS }o--|| EXPENSE_CATEGORIES : "expense_category_id"
+  TRANSACTIONS }o--|| COST_CENTERS : "cost_center_id"
+  COST_ALLOCATIONS }o--|| TRANSACTIONS : "transaction_id"
+  COST_ALLOCATIONS }o--|| PROJECTS : "project_id"

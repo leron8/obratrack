@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+
+# Next/other tool caches (safe to ignore)
+.next
+
+# OS/editor
+.DS_Store
+.vscode
+.idea
+

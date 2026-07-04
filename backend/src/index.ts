@@ -1,0 +1,51 @@
+import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
+import cors from "cors";
+
+import { loadEnv } from "./env";
+import { createOpenAIClient } from "./services/openai";
+import { createSupabaseClient } from "./services/supabase";
+import { tenantMiddleware } from "./routes/tenant";
+import { createWhatsappRouter } from "./routes/whatsapp";
+import { createTransactionsRouter } from "./routes/transactions";
+import { createDashboardRouter } from "./routes/dashboard";
+
+async function main() {
+  const env = loadEnv();
+
+  const openaiClient = createOpenAIClient(env.OPENAI_API_KEY);
+  const db = createSupabaseClient({
+    url: env.SUPABASE_URL,
+    serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY
+  });
+
+  const app = express();
+  app.use(
+    cors({
+      origin: "*"
+    })
+  );
+
+  // Twilio webhook comes as form-encoded.
+  app.use(express.urlencoded({ extended: false }));
+  app.use(express.json());
+
+  app.get("/health", (_req, res) => res.json({ ok: true }));
+
+  app.use(createWhatsappRouter({ env, openaiClient, db }));
+  app.use(tenantMiddleware(env));
+  app.use(createTransactionsRouter({ env, openaiClient, db }));
+  app.use(createDashboardRouter({ db }));
+
+  app.listen(env.PORT, () => {
+    console.log(`Backend listening on http://localhost:${env.PORT}`);
+  });
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+
