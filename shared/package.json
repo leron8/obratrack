@@ -2,12 +2,12 @@
   "name": "@expenses/shared",
   "version": "1.0.0",
   "private": true,
-  "main": "finance-types.ts",
-  "types": "finance-types.ts",
+  "main": "./shared/finance-types.ts",
+  "types": "./shared/finance-types.ts",
   "exports": {
     ".": {
-      "types": "./finance-types.ts",
-      "default": "./finance-types.ts"
+      "types": "./shared/finance-types.ts",
+      "default": "./shared/finance-types.ts"
     }
   }
 }
