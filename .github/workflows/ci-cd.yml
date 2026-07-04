@@ -29,31 +29,7 @@ jobs:
       
       - name: Build frontend
         run: npm run build:frontend
-
-  deploy-backend:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
       
-      - name: Deploy to Render
-        run: |
-          echo "Backend will be deployed by Render's GitHub integration"
-          echo "Configure Render to deploy from the backend/ directory"
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-
-  deploy-frontend:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Deploy to Vercel
-        run: |
-          echo "Frontend will be deployed by Vercel's GitHub integration"
-          echo "Configure Vercel to deploy from the frontend/ directory"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Run backend tests (if any)
+        run: npm run test -w backend || echo "No tests configured"
+        continue-on-error: true

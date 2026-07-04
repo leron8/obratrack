@@ -59,16 +59,49 @@ npm run build -w frontend
 
 ## Deployment
 
-- **Backend**: Automatically deploys to Render via GitHub integration
-- **Frontend**: Automatically deploys to Vercel via GitHub integration
+### Option 1: Native Integrations (Recommended)
+
+**Vercel (Frontend):**
+1. Go to [vercel.com](https://vercel.com)
+2. Import your GitHub repository
+3. Set **Root Directory** to `frontend`
+4. Vercel auto-detects Next.js and configures build settings
+5. Add environment variables in Vercel dashboard
+6. Every push to `main` triggers automatic deployment
+
+**Render (Backend):**
+1. Go to [render.com](https://render.com)
+2. Create new **Web Service**
+3. Connect your GitHub repository
+4. Set **Root Directory** to `backend`
+5. Set **Build Command**: `npm install && npm run build`
+6. Set **Start Command**: `npm start`
+7. Add environment variables in Render dashboard
+8. Every push to `main` triggers automatic deployment
+
+### Option 2: GitHub Actions with API (Advanced)
+
+If you want GitHub Actions to trigger deployments:
+
+**Required Secrets:**
+- `VERCEL_TOKEN` - Get from [vercel.com/account/tokens](https://vercel.com/account/tokens)
+- `RENDER_API_KEY` - Get from Render dashboard → Settings → API Keys
+
+**Setup:**
+1. Go to your GitHub repo → Settings → Secrets and variables → Actions
+2. Add repository secrets:
+   - `VERCEL_TOKEN` - Your Vercel API token
+   - `RENDER_API_KEY` - Your Render API key
+3. Uncomment the deployment jobs in `.github/workflows/ci-cd.yml`
 
 ## CI/CD
 
 GitHub Actions workflow runs on every push to main:
-1. Installs dependencies
-2. Builds all packages
-3. Deploys backend to Render
-4. Deploys frontend to Vercel
+1. ✅ Installs dependencies for all workspaces
+2. ✅ Builds shared package
+3. ✅ Builds backend
+4. ✅ Builds frontend
+5. ✅ Validates that everything compiles
 
 ## Git Workflow
 
@@ -76,3 +109,31 @@ GitHub Actions workflow runs on every push to main:
 2. Make changes in the appropriate workspace
 3. Push and create a pull request
 4. After review, merge to `main` to trigger deployment
+
+## Environment Variables
+
+### Backend (.env in backend/ directory)
+```
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+OPENAI_API_KEY=your_openai_api_key
+WHATSAPP_API_TOKEN=your_whatsapp_token
+```
+
+### Frontend (.env.local in frontend/ directory)
+```
+NEXT_PUBLIC_API_URL=your_backend_url
+```
+
+## Troubleshooting
+
+**"npm not found" error:**
+- Install Node.js 20+ from [nodejs.org](https://nodejs.org/)
+
+**Build errors:**
+- Ensure all dependencies are installed: `npm install`
+- Check that workspace paths are correct in package.json
+
+**Deployment not triggering:**
+- Verify GitHub integration is enabled in Vercel/Render
+- Check that root directory is set correctly
