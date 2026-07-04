@@ -1,0 +1,59 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Build shared package
+        run: npm run build:shared
+      
+      - name: Build backend
+        run: npm run build:backend
+      
+      - name: Build frontend
+        run: npm run build:frontend
+
+  deploy-backend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Render
+        run: |
+          echo "Backend will be deployed by Render's GitHub integration"
+          echo "Configure Render to deploy from the backend/ directory"
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+
+  deploy-frontend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Vercel
+        run: |
+          echo "Frontend will be deployed by Vercel's GitHub integration"
+          echo "Configure Vercel to deploy from the frontend/ directory"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
