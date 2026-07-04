@@ -70,12 +70,26 @@ npm run build -w frontend
 6. Every push to `main` triggers automatic deployment
 
 **Render (Backend):**
+
+**Option A: Using render.yaml (Recommended)**
 1. Go to [render.com](https://render.com)
 2. Create new **Web Service**
 3. Connect your GitHub repository
-4. Set **Root Directory** to `backend`
-5. Set **Build Command**: `npm install && npm run build`
-6. Set **Start Command**: `npm start`
+4. Render will auto-detect the `render.yaml` file in the root
+5. Add environment variables in Render dashboard:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `OPENAI_API_KEY`
+   - `WHATSAPP_API_TOKEN`
+6. Every push to `main` triggers automatic deployment
+
+**Option B: Manual Configuration**
+1. Go to [render.com](https://render.com)
+2. Create new **Web Service**
+3. Connect your GitHub repository
+4. Set **Root Directory** to `.` (root of repo)
+5. Set **Build Command**: `npm install && npm run build:backend`
+6. Set **Start Command**: `npm run start -w backend`
 7. Add environment variables in Render dashboard
 8. Every push to `main` triggers automatic deployment
 
