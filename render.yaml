@@ -8,4 +8,24 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: "3001"
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_WHISPER_MODEL
+        value: whisper-1
+      - key: OPENAI_PARSING_MODEL
+        value: gpt-4o-mini
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DEFAULT_COMPANY_ID
+        value: "00000000-0000-0000-0000-000000000001"
+      - key: DEFAULT_CURRENCY
+        value: MXN
     autoDeploy: true
