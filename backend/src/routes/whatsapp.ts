@@ -14,22 +14,13 @@ import {
 import type { Env } from "../env";
 import type { WhatsAppCaptureTarget } from "@expenses/shared";
 
-function xmlEscape(s: string): string {
-  const ent: Record<string, string> = {};
-  ent["&"] = "&" + "amp;";
-  ent["<"] = "&" + "lt;";
-  ent[">"] = "&" + "gt;";
-  ent['"'] = "&" + "quot;";
-  ent["'"] = "&" + "apos;";
-  return s.replace(/[&<>"']/g, (ch) => ent[ch] ?? ch);
-}
-
 function twimlMsg(message: string): string {
-  return (
-    '<?xml version="1.0" encoding="UTF-8"?><Response><Message>' +
-    xmlEscape(message) +
-    "</Message></Response>"
-  );
+  const escaped = message
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  return '<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + escaped + "</Message></Response>";
 }
 
 export function createWhatsappRouter({
@@ -44,19 +35,13 @@ export function createWhatsappRouter({
   const router = express.Router();
 
   router.post("/webhook/whatsapp", async (req, res) => {
-    // Twilio hits this as `application/x-www-form-urlencoded`.
     const body = req.body as any;
-
-    // Twilio fields (common):
-    // - NumMedia, MediaUrl0, From, To, Body, etc.
     const numMedia = Number(body.NumMedia ?? 0);
     const mediaUrl = body.MediaUrl0 as string | undefined;
     const fromWhatsapp = (body.From as string | undefined) ?? "";
     const toWhatsapp = (body.To as string | undefined) ?? "";
     const bodyText = (body.Body as string | undefined) ?? "";
     const twilioSid = (body.MessageSid as string | undefined) ?? null;
-
-    // For a demo: we store everything under DEFAULT_COMPANY_ID.
     const companyId = env.DEFAULT_COMPANY_ID;
 
     try {
@@ -67,7 +52,6 @@ export function createWhatsappRouter({
         return;
       }
 
-      // Find or create the WhatsApp contact
       const contact = await findOrCreateContact({
         db,
         companyId,
@@ -80,13 +64,11 @@ export function createWhatsappRouter({
           .toUpperCase()
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "");
-
         if (norm === "SI" || norm === "S") return "yes";
         if (norm === "NO" || norm === "N") return "no";
         return null;
       };
 
-      // 1) If user replied "SI/NO", resolve the latest pending draft.
       if (numMedia === 0 && bodyText.trim().length > 0) {
         const decision = yesNoFromUser(bodyText);
         if (decision) {
@@ -98,13 +80,12 @@ export function createWhatsappRouter({
 
           if (!pending) {
             res.type("text/xml").status(200).send(
-              twimlMsg("No hay una confirmaci\u00F3n pendiente para tu \u00FAltimo mensaje.")
+              twimlMsg("No hay una confirmación pendiente para tu último mensaje.")
             );
             return;
           }
 
           if (decision === "yes") {
-            // Create the account movement from the draft data
             const payload: Record<string, unknown> = {
               account_id: pending.account_id ?? null,
               movement_date: pending.movement_date ?? new Date().toISOString().slice(0, 10),
@@ -124,8 +105,6 @@ export function createWhatsappRouter({
             };
 
             const movement = await insertMovement({ db, companyId, payload });
-
-            // Update draft status to confirmed
             await updateDraftStatus({
               db,
               draftId: pending.id,
@@ -134,7 +113,7 @@ export function createWhatsappRouter({
             });
 
             res.type("text/xml").status(200).send(
-              twimlMsg("Listo, guard\u00E9 el registro correctamente \u2705")
+              twimlMsg("Listo, guardé el registro correctamente ✓")
             );
             return;
           }
@@ -145,17 +124,13 @@ export function createWhatsappRouter({
             status: "rejected"
           });
           res.type("text/xml").status(200).send(
-            twimlMsg("Entendido, no se guard\u00F3 el registro \u274C")
+            twimlMsg("Entendido, no se guardó el registro ✗")
           );
           return;
         }
       }
 
-      // 2) Otherwise, interpret this message as a new movement request:
-      //    - If there's audio: download + Whisper -> transcript
-      //    - If it's text: use Body as transcript
       let transcriptText: string;
-
       if (numMedia > 0 && mediaUrl) {
         const tmpPath = await downloadAudioToTempFile({
           mediaUrl,
@@ -170,7 +145,6 @@ export function createWhatsappRouter({
             model: env.OPENAI_WHISPER_MODEL
           });
         } finally {
-          // Best-effort cleanup.
           void (async () => {
             try {
               const fs = await import("node:fs/promises");
@@ -186,12 +160,11 @@ export function createWhatsappRouter({
 
       if (!transcriptText) {
         res.type("text/xml").status(200).send(
-          twimlMsg("No recib\u00ED un mensaje de texto ni un audio v\u00E1lido.")
+          twimlMsg("No recibí un mensaje de texto ni un audio válido.")
         );
         return;
       }
 
-      // Store the inbound message
       const inboundMsg = await insertWhatsAppMessage({
         db,
         companyId,
@@ -213,7 +186,6 @@ export function createWhatsappRouter({
         defaultCurrency: env.DEFAULT_CURRENCY
       });
 
-      // Determine target type based on movement_kind
       let targetType: WhatsAppCaptureTarget = "account_movement";
       if (parsed.movement_kind === "fuel_expense") {
         targetType = "fuel_transaction";
@@ -221,7 +193,6 @@ export function createWhatsappRouter({
         targetType = "payroll_line";
       }
 
-      // Store as pending capture draft before inserting into account_movements
       await insertCaptureDraft({
         db,
         companyId,
@@ -238,9 +209,9 @@ export function createWhatsappRouter({
         client_income: "Ingreso de cliente",
         expense: "Gasto general",
         fuel_expense: "Gasolina",
-        payroll_payment: "N\u00F3mina",
+        payroll_payment: "Nómina",
         supplier_payment: "Pago a proveedor",
-        bank_fee: "Comisi\u00F3n bancaria",
+        bank_fee: "Comisión bancaria",
         tax_payment: "Pago de impuestos",
         internal_transfer: "Transferencia",
         adjustment: "Ajuste"
@@ -248,10 +219,10 @@ export function createWhatsappRouter({
       const kindLabel = kindLabels[parsed.movement_kind] ?? parsed.movement_kind;
 
       const summary = [
-        "\u00BFConfirmas este registro?",
+        "¿Confirmas este registro?",
         "Tipo: " + directionLabel + " (" + kindLabel + ")",
         "Monto: " + parsed.amount + " " + parsed.currency,
-        "Descripci\u00F3n: " + parsed.description,
+        "Descripción: " + parsed.description,
         "",
         "Responde SI para guardar o NO para descartar."
       ].join("\n");
@@ -260,7 +231,7 @@ export function createWhatsappRouter({
     } catch (err) {
       console.error("WhatsApp webhook processing error:", err);
       res.type("text/xml").status(200).send(
-        twimlMsg("Ocurri\u00F3 un error al procesar tu mensaje. Intenta de nuevo.")
+        twimlMsg("Ocurrió un error al procesar tu mensaje. Intenta de nuevo.")
       );
     }
   });
