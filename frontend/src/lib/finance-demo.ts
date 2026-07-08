@@ -19,13 +19,13 @@ async function fetchJson(url: string, init?: RequestInit) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = typeof data === "object" && data && "error" in data ? String((data as { error?: string }).error) : res.statusText;
-    throw new Error(message || `Request failed with ${res.status}`);
+    throw new Error(message || `La solicitud fallo con estado ${res.status}`);
   }
   return data;
 }
 
 function getRoleLabel(role: "admin" | "viewer") {
-  return role === "admin" ? "Admin (demo, full access)" : "Viewer";
+  return role === "admin" ? "Administrador (demo, acceso total)" : "Solo lectura";
 }
 
 function useDemoRole() {

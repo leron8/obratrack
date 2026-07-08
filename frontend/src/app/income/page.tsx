@@ -58,7 +58,7 @@ export default function IncomePage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!companyId) {
-      setError("Set a company ID first.");
+      setError("Primero configura un ID de empresa.");
       return;
     }
     setSaving(true);
@@ -122,11 +122,11 @@ export default function IncomePage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">Income</p>
-            <h1 className="mt-2 text-2xl font-semibold text-white">Manage incoming records</h1>
+            <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">Ingresos</p>
+            <h1 className="mt-2 text-2xl font-semibold text-white">Administra los registros de ingreso</h1>
           </div>
           <div className="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-            Demo role: <span className="ml-2 font-semibold text-cyan-300">{getRoleLabel(role)}</span>
+            Rol demo: <span className="ml-2 font-semibold text-cyan-300">{getRoleLabel(role)}</span>
           </div>
         </div>
       </Card>
@@ -137,20 +137,20 @@ export default function IncomePage() {
             <input
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
-              placeholder="Company ID"
+              placeholder="ID de empresa"
               className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
             />
             <input
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Description"
+              placeholder="Descripcion"
               className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
               required
             />
             <input
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              placeholder="Amount"
+              placeholder="Monto"
               type="number"
               step="0.01"
               className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
@@ -162,7 +162,7 @@ export default function IncomePage() {
               className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
               required
             >
-              <option value="">-- Select account --</option>
+              <option value="">-- Selecciona una cuenta --</option>
               {accounts.map((a: any) => (
                 <option key={a.id} value={a.id}>{a.name} ({a.account_type})</option>
               ))}
@@ -181,36 +181,36 @@ export default function IncomePage() {
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Notes"
+              placeholder="Notas"
               className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
               rows={3}
             />
             <div className="flex items-center gap-3">
-              <label className="text-sm text-slate-400">Demo role</label>
+              <label className="text-sm text-slate-400">Rol demo</label>
               <select value={role} onChange={(e) => setRole(e.target.value as "admin" | "viewer")} className="rounded-3xl border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100">
-                <option value="admin">Admin</option>
-                <option value="viewer">Viewer</option>
+                <option value="admin">Administrador</option>
+                <option value="viewer">Solo lectura</option>
               </select>
             </div>
             <button disabled={saving || role !== "admin"} className="rounded-3xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
-              {saving ? "Saving..." : editingId ? "Update income record" : "Add income record"}
+              {saving ? "Guardando..." : editingId ? "Actualizar ingreso" : "Agregar ingreso"}
             </button>
           </form>
 
           <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Current total</p>
+            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Total actual</p>
             <p className="mt-3 text-3xl font-semibold text-white">{formatMoney(totalIncome, form.currency)}</p>
-            <p className="mt-3 text-sm text-slate-400">Records shown below are loaded from the backend and will also appear in the dashboard.</p>
+            <p className="mt-3 text-sm text-slate-400">Los registros mostrados abajo se cargan del backend y tambien apareceran en el panel.</p>
           </div>
         </div>
       </Card>
 
       <Card>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">Income entries</h2>
-          <span className="text-sm text-slate-400">{movements.length} records</span>
+          <h2 className="text-xl font-semibold text-white">Registros de ingresos</h2>
+          <span className="text-sm text-slate-400">{movements.length} registros</span>
         </div>
-        {loading ? <p className="text-sm text-slate-500">Loading...</p> : null}
+        {loading ? <p className="text-sm text-slate-500">Cargando...</p> : null}
         {error ? <p className="text-sm text-rose-300">{error}</p> : null}
         <div className="space-y-3">
           {movements.map((item) => {
@@ -221,14 +221,14 @@ export default function IncomePage() {
                   <div>
                     <p className="font-medium text-white">{item.description}</p>
                     <p className="mt-1 text-sm text-slate-500">{kindLabel}</p>
-                    <p className="mt-0.5 text-xs text-slate-600">Mov date: {item.movement_date}</p>
+                    <p className="mt-0.5 text-xs text-slate-600">Fecha del movimiento: {item.movement_date}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-emerald-400">{formatMoney(Number(item.amount), item.currency || "MXN")}</p>
                     <p className="mt-1 text-xs text-slate-500">{new Date(item.created_at).toLocaleString("es-MX")}</p>
                     <div className="mt-3 flex justify-end gap-2">
-                      <button onClick={() => void handleEdit(item)} className="rounded-2xl border border-slate-700 px-3 py-2 text-xs text-slate-300">Edit</button>
-                      <button onClick={() => void handleDelete(item.id)} className="rounded-2xl border border-rose-600/40 px-3 py-2 text-xs text-rose-300">Delete</button>
+                      <button onClick={() => void handleEdit(item)} className="rounded-2xl border border-slate-700 px-3 py-2 text-xs text-slate-300">Editar</button>
+                      <button onClick={() => void handleDelete(item.id)} className="rounded-2xl border border-rose-600/40 px-3 py-2 text-xs text-rose-300">Eliminar</button>
                     </div>
                   </div>
                 </div>
