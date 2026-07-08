@@ -84,7 +84,7 @@ export default function Dashboard() {
           summaryJson && typeof summaryJson === "object" && "error" in summaryJson
             ? (summaryJson as { error: string }).error
             : summaryRes.statusText;
-        throw new Error(`Failed to fetch dashboard summary (${summaryRes.status}): ${backendError}`);
+        throw new Error(`No se pudo cargar el resumen del panel (${summaryRes.status}): ${backendError}`);
       }
 
       setSummary(summaryJson as DashboardSummary);
@@ -131,7 +131,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="grid gap-4 rounded-[32px] border border-slate-800 bg-slate-950 p-5 shadow-soft md:grid-cols-[1.5fr_1fr]">
         <div className="space-y-2">
-          <p className="text-sm text-cyan-300">Company ID</p>
+          <p className="text-sm text-cyan-300">ID de empresa</p>
           <input
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value)}
@@ -143,7 +143,7 @@ export default function Dashboard() {
           onClick={() => void load()}
           className="h-14 w-full rounded-3xl bg-cyan-500 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
         >
-          Refresh dashboard
+          Actualizar panel
         </button>
       </div>
 
@@ -163,9 +163,9 @@ export default function Dashboard() {
 
       {!loading && summary ? (
         <div className="grid gap-4 xl:grid-cols-3">
-          <KpiCard label="Total Income" value={formatMoney(summary.incomeTotal, currency)} metric="Monthly" />
-          <KpiCard label="Total Expenses" value={formatMoney(summary.expenseTotal, currency)} metric="Monthly" />
-          <KpiCard label="Net Balance" value={formatMoney(summary.balance, currency)} metric="Monthly" />
+          <KpiCard label="Ingresos totales" value={formatMoney(summary.incomeTotal, currency)} metric="Mensual" />
+          <KpiCard label="Gastos totales" value={formatMoney(summary.expenseTotal, currency)} metric="Mensual" />
+          <KpiCard label="Balance neto" value={formatMoney(summary.balance, currency)} metric="Mensual" />
         </div>
       ) : null}
 
@@ -173,26 +173,26 @@ export default function Dashboard() {
         <Card>
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Trend</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">Income vs Expenses</h2>
+              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Tendencia</p>
+              <h2 className="mt-3 text-xl font-semibold text-white">Ingresos vs gastos</h2>
             </div>
             <span className="rounded-3xl bg-slate-900 px-3 py-2 text-xs uppercase tracking-[0.24em] text-slate-400">
-              30 days
+              30 dias
             </span>
           </div>
           <div className="h-[320px]">
             {chartData ? (
               <Bar data={chartData as any} options={{ responsive: true, plugins: { legend: { position: "bottom" } } }} />
             ) : (
-              <div className="flex h-full items-center justify-center text-slate-500">No data available.</div>
+              <div className="flex h-full items-center justify-center text-slate-500">No hay datos disponibles.</div>
             )}
           </div>
         </Card>
 
         <Card className="space-y-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Breakdown</p>
-            <h2 className="mt-3 text-xl font-semibold text-white">Expense Summary</h2>
+            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Desglose</p>
+            <h2 className="mt-3 text-xl font-semibold text-white">Resumen de gastos</h2>
           </div>
           <div className="grid gap-3">
             {summary?.expensesByCategory && summary.expensesByCategory.length > 0 ? (
@@ -204,7 +204,7 @@ export default function Dashboard() {
               ))
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-950 p-8 text-center text-sm text-slate-500">
-                No expense data
+                No hay datos de gastos
               </div>
             )}
           </div>
@@ -215,14 +215,14 @@ export default function Dashboard() {
         <Card>
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Recent Activity</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Latest movements</h2>
+              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Actividad reciente</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Ultimos movimientos</h2>
             </div>
           </div>
           <div className="space-y-3">
             {movements.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-950 p-8 text-center text-slate-500">
-                No recent activity found.
+                No se encontro actividad reciente.
               </div>
             ) : (
               movements.map((t) => {
@@ -251,8 +251,8 @@ export default function Dashboard() {
 
         <div className="grid gap-4">
           <Card>
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Accounts</p>
-            <h2 className="mt-3 text-xl font-semibold text-white">Account balances</h2>
+            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Cuentas</p>
+            <h2 className="mt-3 text-xl font-semibold text-white">Saldos de cuentas</h2>
             <div className="mt-4 grid gap-3">
               {summary?.accountBalances && summary.accountBalances.length > 0 ? (
                 summary.accountBalances.slice(0, 4).map((acc) => (
@@ -265,26 +265,26 @@ export default function Dashboard() {
                 ))
               ) : (
                 <div className="rounded-3xl bg-slate-900 p-4">
-                  <p className="text-sm text-slate-400">No accounts configured</p>
+                  <p className="text-sm text-slate-400">No hay cuentas configuradas</p>
                 </div>
               )}
             </div>
           </Card>
 
           <Card>
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Summary</p>
-            <h2 className="mt-3 text-xl font-semibold text-white">Projects & fleet</h2>
+            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Resumen</p>
+            <h2 className="mt-3 text-xl font-semibold text-white">Proyectos y flotilla</h2>
             <div className="mt-4 space-y-3">
               <div className="rounded-3xl bg-slate-900 p-4">
-                <p className="text-sm text-slate-400">Active vehicles</p>
+                <p className="text-sm text-slate-400">Vehiculos activos</p>
                 <p className="mt-2 text-lg font-semibold text-white">{summary?.activeVehicles ?? 0}</p>
               </div>
               <div className="rounded-3xl bg-slate-900 p-4">
-                <p className="text-sm text-slate-400">Active projects</p>
+                <p className="text-sm text-slate-400">Proyectos activos</p>
                 <p className="mt-2 text-lg font-semibold text-white">{summary?.activeProjects ?? 0}</p>
               </div>
               <div className="rounded-3xl bg-slate-900 p-4">
-                <p className="text-sm text-slate-400">Pending documents</p>
+                <p className="text-sm text-slate-400">Documentos pendientes</p>
                 <p className="mt-2 text-lg font-semibold text-white">{summary?.pendingDocuments ?? 0}</p>
               </div>
             </div>

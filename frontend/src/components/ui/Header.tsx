@@ -20,18 +20,18 @@ export function Header({ eyebrow, title, description }: HeaderProps) {
           <Search className="mr-3 h-4 w-4 text-slate-400" />
           <input
             type="search"
-            placeholder="Search projects, invoices..."
+            placeholder="Buscar proyectos, facturas..."
             className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
         </div>
 
         <button className="flex items-center justify-between rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-soft">
-          <span>Last 30 days</span>
+          <span>Ultimos 30 dias</span>
           <Calendar className="h-4 w-4 text-slate-400" />
         </button>
 
         <button className="flex items-center justify-between rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-100 shadow-soft">
-          <span>All Projects</span>
+          <span>Todos los proyectos</span>
           <ChevronDown className="h-4 w-4 text-slate-400" />
         </button>
       </div>
@@ -44,7 +44,7 @@ export function Header({ eyebrow, title, description }: HeaderProps) {
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-300">JD</span>
           <div className="text-left">
             <p className="text-sm font-medium text-white">Jordan Doe</p>
-            <p className="text-xs text-slate-500">Project Admin</p>
+            <p className="text-xs text-slate-500">Administrador de proyectos</p>
           </div>
         </button>
       </div>
