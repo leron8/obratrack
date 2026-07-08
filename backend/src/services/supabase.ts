@@ -23,7 +23,8 @@ import type {
   WhatsAppCaptureStatus,
   FinancialDocumentRow,
   PayrollRun,
-  PayrollLine
+  PayrollLine,
+  EmployeeLoanBalance
 } from "@expenses/shared";
 
 export type AuditContext = {
@@ -196,6 +197,119 @@ function normalizeVehicleRow(
     responsible_employee_name: row.employees?.full_name ?? null,
     responsible_employee_code: row.employees?.employee_code ?? null,
     notes: row.notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
+type PayrollRunRow = {
+  id: string;
+  company_id: string;
+  run_number: string | null;
+  week_number: number | null;
+  period_start: string;
+  period_end: string;
+  status: PayrollRun["status"];
+  description: string | null;
+  source_file: string | null;
+  source_sheet: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type PayrollRunSummaryRow = {
+  payroll_run_id: string;
+  line_count: number | string | null;
+  employee_count: number | string | null;
+  project_count: number | string | null;
+  gross_total: number | string | null;
+  loan_deductions_total: number | string | null;
+  other_deductions_total: number | string | null;
+  net_total: number | string | null;
+};
+
+type PayrollLineRow = {
+  id: string;
+  company_id: string;
+  payroll_run_id: string;
+  employee_id: string | null;
+  worker_name: string | null;
+  project_id: string | null;
+  cost_center_id: string | null;
+  role_or_task: string | null;
+  days_worked: number | string | null;
+  gross_amount: number | string;
+  loan_deduction_amount: number | string;
+  other_deduction_amount: number | string;
+  net_amount: number | string;
+  payment_method: PaymentMethod;
+  account_movement_id: string | null;
+  notes: string | null;
+  source_row: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function asNumber(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return 0;
+  return Number(value);
+}
+
+function normalizePayrollRunRow(
+  row: PayrollRunRow,
+  summary?: PayrollRunSummaryRow | null
+): PayrollRun {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    run_number: row.run_number,
+    week_number: row.week_number,
+    period_start: row.period_start,
+    period_end: row.period_end,
+    status: row.status,
+    description: row.description,
+    source_file: row.source_file,
+    source_sheet: row.source_sheet,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    line_count: asNumber(summary?.line_count),
+    employee_count: asNumber(summary?.employee_count),
+    project_count: asNumber(summary?.project_count),
+    gross_total: asNumber(summary?.gross_total),
+    loan_deductions_total: asNumber(summary?.loan_deductions_total),
+    other_deductions_total: asNumber(summary?.other_deductions_total),
+    net_total: asNumber(summary?.net_total)
+  };
+}
+
+function normalizePayrollLineRow(
+  row: PayrollLineRow & {
+    employees?: { full_name?: string | null; employee_code?: string | null } | null;
+    projects?: { name?: string | null; code?: string | null } | null;
+  }
+): PayrollLine {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    payroll_run_id: row.payroll_run_id,
+    employee_id: row.employee_id,
+    employee_name: row.employees?.full_name ?? null,
+    employee_code: row.employees?.employee_code ?? null,
+    worker_name: row.worker_name,
+    project_id: row.project_id,
+    project_name: row.projects?.name ?? null,
+    project_code: row.projects?.code ?? null,
+    cost_center_id: row.cost_center_id,
+    role_or_task: row.role_or_task,
+    days_worked: row.days_worked === null ? null : Number(row.days_worked),
+    gross_amount: Number(row.gross_amount),
+    loan_deduction_amount: Number(row.loan_deduction_amount),
+    other_deduction_amount: Number(row.other_deduction_amount),
+    net_amount: Number(row.net_amount),
+    payment_method: row.payment_method,
+    account_movement_id: row.account_movement_id,
+    notes: row.notes,
+    source_row: row.source_row,
     created_at: row.created_at,
     updated_at: row.updated_at
   };
@@ -1463,38 +1577,280 @@ export async function deleteBusinessPartner({
 export async function listPayrollRuns({
   db,
   companyId,
-  limit
+  limit,
+  status
 }: {
   db: SupabaseClient;
   companyId: string;
   limit: number;
+  status?: PayrollRun["status"];
 }): Promise<PayrollRun[]> {
-  const { data, error } = await db
+  let runsQuery = db
     .from("payroll_runs")
     .select("*")
     .eq("company_id", companyId)
     .order("period_start", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
+  if (status) {
+    runsQuery = runsQuery.eq("status", status);
+  }
+
+  const { data: runsData, error: runsError } = await runsQuery;
+  if (runsError) throw runsError;
+
+  const runs = (runsData ?? []) as PayrollRunRow[];
+  if (runs.length === 0) return [];
+
+  const runIds = runs.map((run) => run.id);
+  const { data: summaryData, error: summaryError } = await db
+    .from("vw_payroll_run_summary")
+    .select("*")
+    .in("payroll_run_id", runIds);
+
+  if (summaryError) throw summaryError;
+
+  const summaryById = new Map<string, PayrollRunSummaryRow>(
+    ((summaryData ?? []) as PayrollRunSummaryRow[]).map((summary) => [summary.payroll_run_id, summary])
+  );
+
+  return runs.map((run) => normalizePayrollRunRow(run, summaryById.get(run.id)));
+}
+
+export async function getPayrollRun({
+  db,
+  companyId,
+  payrollRunId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payrollRunId: string;
+}): Promise<PayrollRun | null> {
+  const { data: runData, error: runError } = await db
+    .from("payroll_runs")
+    .select("*")
+    .eq("id", payrollRunId)
+    .eq("company_id", companyId)
+    .single();
+
+  if (runError) {
+    if (runError.code === "PGRST116") return null;
+    throw runError;
+  }
+
+  const { data: summaryData, error: summaryError } = await db
+    .from("vw_payroll_run_summary")
+    .select("*")
+    .eq("payroll_run_id", payrollRunId)
+    .maybeSingle();
+
+  if (summaryError) throw summaryError;
+
+  return normalizePayrollRunRow(runData as PayrollRunRow, (summaryData ?? null) as PayrollRunSummaryRow | null);
+}
+
+export async function createPayrollRun({
+  db,
+  companyId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payload: Record<string, unknown>;
+}): Promise<PayrollRun> {
+  const { data, error } = await db
+    .from("payroll_runs")
+    .insert({ ...payload, company_id: companyId })
+    .select("id")
+    .single();
+
   if (error) throw error;
-  return (data ?? []) as PayrollRun[];
+
+  const created = await getPayrollRun({
+    db,
+    companyId,
+    payrollRunId: (data as { id: string }).id
+  });
+
+  if (!created) {
+    throw new Error("Payroll run was created but could not be reloaded.");
+  }
+
+  return created;
+}
+
+export async function updatePayrollRun({
+  db,
+  companyId,
+  payrollRunId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payrollRunId: string;
+  payload: Record<string, unknown>;
+}): Promise<PayrollRun> {
+  const { error } = await db
+    .from("payroll_runs")
+    .update(payload)
+    .eq("id", payrollRunId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
+
+  const updated = await getPayrollRun({ db, companyId, payrollRunId });
+  if (!updated) {
+    throw new Error("Payroll run was updated but could not be reloaded.");
+  }
+
+  return updated;
+}
+
+export async function deletePayrollRun({
+  db,
+  companyId,
+  payrollRunId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payrollRunId: string;
+}): Promise<void> {
+  const { error } = await db
+    .from("payroll_runs")
+    .delete()
+    .eq("id", payrollRunId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
 }
 
 export async function listPayrollLines({
   db,
+  companyId,
   payrollRunId
 }: {
   db: SupabaseClient;
+  companyId: string;
   payrollRunId: string;
 }): Promise<PayrollLine[]> {
   const { data, error } = await db
     .from("payroll_lines")
-    .select("*")
+    .select("*, employees!employee_id(full_name, employee_code), projects!project_id(name, code)")
+    .eq("company_id", companyId)
     .eq("payroll_run_id", payrollRunId)
-    .order("id");
+    .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as PayrollLine[];
+  return (
+    (data ?? []) as Array<
+      PayrollLineRow & {
+        employees?: { full_name?: string | null; employee_code?: string | null } | null;
+        projects?: { name?: string | null; code?: string | null } | null;
+      }
+    >
+  ).map(normalizePayrollLineRow);
+}
+
+export async function createPayrollLine({
+  db,
+  companyId,
+  payrollRunId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payrollRunId: string;
+  payload: Record<string, unknown>;
+}): Promise<PayrollLine> {
+  const { data, error } = await db
+    .from("payroll_lines")
+    .insert({ ...payload, company_id: companyId, payroll_run_id: payrollRunId })
+    .select("*, employees!employee_id(full_name, employee_code), projects!project_id(name, code)")
+    .single();
+
+  if (error) throw error;
+  return normalizePayrollLineRow(
+    data as PayrollLineRow & {
+      employees?: { full_name?: string | null; employee_code?: string | null } | null;
+      projects?: { name?: string | null; code?: string | null } | null;
+    }
+  );
+}
+
+export async function updatePayrollLine({
+  db,
+  companyId,
+  payrollLineId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payrollLineId: string;
+  payload: Record<string, unknown>;
+}): Promise<PayrollLine> {
+  const { data, error } = await db
+    .from("payroll_lines")
+    .update(payload)
+    .eq("id", payrollLineId)
+    .eq("company_id", companyId)
+    .select("*, employees!employee_id(full_name, employee_code), projects!project_id(name, code)")
+    .single();
+
+  if (error) throw error;
+  return normalizePayrollLineRow(
+    data as PayrollLineRow & {
+      employees?: { full_name?: string | null; employee_code?: string | null } | null;
+      projects?: { name?: string | null; code?: string | null } | null;
+    }
+  );
+}
+
+export async function deletePayrollLine({
+  db,
+  companyId,
+  payrollLineId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payrollLineId: string;
+}): Promise<void> {
+  const { error } = await db
+    .from("payroll_lines")
+    .delete()
+    .eq("id", payrollLineId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
+}
+
+export async function listEmployeeLoanBalances({
+  db,
+  companyId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+}): Promise<EmployeeLoanBalance[]> {
+  const { data, error } = await db
+    .from("vw_employee_loan_balances")
+    .select("*")
+    .eq("company_id", companyId)
+    .gt("balance_amount", 0)
+    .order("loan_date", { ascending: false });
+
+  if (error) throw error;
+
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    employee_loan_id: String(row.employee_loan_id),
+    company_id: String(row.company_id),
+    employee_id: String(row.employee_id),
+    employee_name: String(row.employee_name ?? ""),
+    loan_date: String(row.loan_date),
+    principal_amount: asNumber(row.principal_amount as number | string | null | undefined),
+    paid_amount: asNumber(row.paid_amount as number | string | null | undefined),
+    balance_amount: asNumber(row.balance_amount as number | string | null | undefined),
+    status: row.status as EmployeeLoanBalance["status"]
+  }));
 }
 
 // ── Financial documents ───────────────────────────────────────────────

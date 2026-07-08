@@ -92,6 +92,12 @@ export type FuelProduct = "Magna" | "Premium" | "Diesel" | "Other";
 
 export type WorkerType = "employee" | "contractor" | "destajista" | "partner";
 
+export type EmployeeStatus = "active" | "inactive" | "terminated";
+
+export type PayrollStatus = "draft" | "approved" | "paid" | "cancelled";
+
+export type LoanStatus = "active" | "paid" | "cancelled" | "written_off";
+
 export type WhatsAppCaptureStatus =
   | "pending_confirmation"
   | "confirmed"
@@ -439,23 +445,57 @@ export type PayrollRun = {
   week_number: number | null;
   period_start: string;
   period_end: string;
-  status: "draft" | "approved" | "paid" | "cancelled";
+  status: PayrollStatus;
   description: string | null;
+  source_file: string | null;
+  source_sheet: string | null;
   created_at: string;
+  updated_at: string;
+  line_count: number;
+  employee_count: number;
+  project_count: number;
+  gross_total: number;
+  loan_deductions_total: number;
+  other_deductions_total: number;
+  net_total: number;
 };
 
 export type PayrollLine = {
   id: string;
+  company_id: string;
   payroll_run_id: string;
   employee_id: string | null;
+  employee_name?: string | null;
+  employee_code?: string | null;
+  worker_name: string | null;
   project_id: string | null;
+  project_name?: string | null;
+  project_code?: string | null;
+  cost_center_id: string | null;
+  role_or_task: string | null;
   days_worked: number | null;
-  gross_amount: string;
-  loan_deduction_amount: string;
-  other_deduction_amount: string;
-  net_amount: string;
+  gross_amount: number;
+  loan_deduction_amount: number;
+  other_deduction_amount: number;
+  net_amount: number;
   payment_method: PaymentMethod;
+  account_movement_id: string | null;
   notes: string | null;
+  source_row: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeLoanBalance = {
+  employee_loan_id: string;
+  company_id: string;
+  employee_id: string;
+  employee_name: string;
+  loan_date: string;
+  principal_amount: number;
+  paid_amount: number;
+  balance_amount: number;
+  status: LoanStatus;
 };
 
 // ── Fuel ───────────────────────────────────────────────────────────────
