@@ -223,6 +223,10 @@ function getRequestedRole(req: express.Request): "admin" | "viewer" {
   return rawRole === "viewer" ? "viewer" : "admin";
 }
 
+function getRequestDb(req: express.Request, fallback: SupabaseClient): SupabaseClient {
+  return req.db ?? fallback;
+}
+
 export function createTransactionsRouter({
   env,
   openaiClient,
@@ -272,9 +276,10 @@ export function createTransactionsRouter({
       };
 
       const inserted = await insertMovement({
-        db,
+        db: getRequestDb(req, db),
         companyId,
-        payload
+        payload,
+        auditContext: req.auditContext
       });
 
       return res.json({
@@ -317,9 +322,10 @@ export function createTransactionsRouter({
       };
 
       const inserted = await insertMovement({
-        db,
+        db: getRequestDb(req, db),
         companyId,
-        payload
+        payload,
+        auditContext: req.auditContext
       });
 
       return res.json({
@@ -343,7 +349,7 @@ export function createTransactionsRouter({
       const movementKind = typeof req.query.movement_kind === "string" ? (req.query.movement_kind as MovementKind) : undefined;
 
       const rows = await listMovements({
-        db,
+        db: getRequestDb(req, db),
         companyId,
         limit: Math.min(Math.max(limit, 1), 200),
         direction,
@@ -363,7 +369,7 @@ export function createTransactionsRouter({
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
       const limit = Number(req.query.limit ?? 50);
       const rows = await listMovements({
-        db,
+        db: getRequestDb(req, db),
         companyId,
         limit: Math.min(Math.max(limit, 1), 200)
       });
@@ -381,7 +387,7 @@ export function createTransactionsRouter({
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
       const movement = await getMovement({
-        db,
+        db: getRequestDb(req, db),
         companyId,
         movementId: req.params.id
       });
@@ -417,7 +423,12 @@ export function createTransactionsRouter({
         normalizedPayload.source_module = "api";
       }
 
-      const created = await createMovement({ db, companyId, payload: normalizedPayload });
+      const created = await createMovement({
+        db: getRequestDb(req, db),
+        companyId,
+        payload: normalizedPayload,
+        auditContext: req.auditContext
+      });
       return res.json({ movement: created });
     } catch (error) {
       console.error("create-movement error:", error);
@@ -464,7 +475,12 @@ export function createTransactionsRouter({
         source_module: "api"
       };
 
-      const created = await createMovement({ db, companyId, payload });
+      const created = await createMovement({
+        db: getRequestDb(req, db),
+        companyId,
+        payload,
+        auditContext: req.auditContext
+      });
       return res.json({ transaction: created });
     } catch (error) {
       console.error("create-transaction error:", error);
@@ -489,10 +505,11 @@ export function createTransactionsRouter({
       );
 
       const updated = await updateMovement({
-        db,
+        db: getRequestDb(req, db),
         companyId,
         movementId: req.params.id,
-        payload
+        payload,
+        auditContext: req.auditContext
       });
 
       return res.json({ movement: updated });
@@ -529,10 +546,11 @@ export function createTransactionsRouter({
       if (body.expense_category_id !== undefined) payload.expense_category_id = body.expense_category_id;
 
       const updated = await updateMovement({
-        db,
+        db: getRequestDb(req, db),
         companyId,
         movementId: req.params.id,
-        payload
+        payload,
+        auditContext: req.auditContext
       });
 
       return res.json({ transaction: updated });
@@ -552,7 +570,12 @@ export function createTransactionsRouter({
         return res.status(403).json({ error: "Admin role required for write operations." });
       }
 
-      await deleteMovement({ db, companyId, movementId: req.params.id });
+      await deleteMovement({
+        db: getRequestDb(req, db),
+        companyId,
+        movementId: req.params.id,
+        auditContext: req.auditContext
+      });
       return res.json({ ok: true });
     } catch (error) {
       console.error("delete-movement error:", error);
@@ -569,7 +592,12 @@ export function createTransactionsRouter({
         return res.status(403).json({ error: "Admin role required for write operations." });
       }
 
-      await deleteMovement({ db, companyId, movementId: req.params.id });
+      await deleteMovement({
+        db: getRequestDb(req, db),
+        companyId,
+        movementId: req.params.id,
+        auditContext: req.auditContext
+      });
       return res.json({ ok: true });
     } catch (error) {
       console.error("delete-transaction error:", error);
@@ -595,7 +623,7 @@ export function createTransactionsRouter({
       const end = new Date(Date.UTC(year, monthIndex + 1, 1, 0, 0, 0));
 
       const totals = await reportMonthMovements({
-        db,
+        db: getRequestDb(req, db),
         companyId,
         startInclusive: start.toISOString().slice(0, 10),
         endExclusive: end.toISOString().slice(0, 10)
@@ -613,7 +641,7 @@ export function createTransactionsRouter({
   router.get("/accounts", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const accounts = await listAccounts({ db, companyId });
+      const accounts = await listAccounts({ db: getRequestDb(req, db), companyId });
       return res.json({ accounts });
     } catch (error) {
       console.error("list-accounts error:", error);
@@ -624,7 +652,7 @@ export function createTransactionsRouter({
   router.get("/expense-categories", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const categories = await listExpenseCategories({ db, companyId });
+      const categories = await listExpenseCategories({ db: getRequestDb(req, db), companyId });
       return res.json({ categories });
     } catch (error) {
       console.error("list-expense-categories error:", error);

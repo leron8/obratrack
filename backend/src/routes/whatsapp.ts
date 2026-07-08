@@ -23,6 +23,10 @@ function twimlMsg(message: string): string {
   return '<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + escaped + "</Message></Response>";
 }
 
+function getRequestDb(req: express.Request, fallback: SupabaseClient): SupabaseClient {
+  return req.db ?? fallback;
+}
+
 export function createWhatsappRouter({
   env,
   openaiClient,
@@ -43,6 +47,7 @@ export function createWhatsappRouter({
     const bodyText = (body.Body as string | undefined) ?? "";
     const twilioSid = (body.MessageSid as string | undefined) ?? null;
     const companyId = env.DEFAULT_COMPANY_ID;
+    const requestDb = getRequestDb(req, db);
 
     try {
       if (!fromWhatsapp) {
@@ -53,7 +58,7 @@ export function createWhatsappRouter({
       }
 
       const contact = await findOrCreateContact({
-        db,
+        db: requestDb,
         companyId,
         phoneNumber: fromWhatsapp
       });
@@ -72,8 +77,22 @@ export function createWhatsappRouter({
       if (numMedia === 0 && bodyText.trim().length > 0) {
         const decision = yesNoFromUser(bodyText);
         if (decision) {
+          const confirmationMsg = await insertWhatsAppMessage({
+            db: requestDb,
+            companyId,
+            contactId: contact.id,
+            twilioMessageSid: twilioSid,
+            direction: "inbound",
+            messageKind: "confirmation",
+            fromNumber: fromWhatsapp,
+            toNumber: toWhatsapp,
+            body: bodyText || null,
+            transcript: bodyText.trim(),
+            rawPayload: body
+          });
+
           const pending = await getLatestPendingDraft({
-            db,
+            db: requestDb,
             companyId,
             contactId: contact.id
           });
@@ -104,12 +123,18 @@ export function createWhatsappRouter({
               source_module: "whatsapp"
             };
 
-            const movement = await insertMovement({ db, companyId, payload });
+            const movement = await insertMovement({
+              db: requestDb,
+              companyId,
+              payload,
+              auditContext: req.auditContext
+            });
             await updateDraftStatus({
-              db,
+              db: requestDb,
               draftId: pending.id,
               status: "confirmed",
-              accountMovementId: movement.id
+              accountMovementId: movement.id,
+              confirmationMessageId: confirmationMsg.id
             });
 
             res.type("text/xml").status(200).send(
@@ -119,9 +144,10 @@ export function createWhatsappRouter({
           }
 
           await updateDraftStatus({
-            db,
+            db: requestDb,
             draftId: pending.id,
-            status: "rejected"
+            status: "rejected",
+            confirmationMessageId: confirmationMsg.id
           });
           res.type("text/xml").status(200).send(
             twimlMsg("Entendido, no se guardó el registro ✗")
@@ -166,7 +192,7 @@ export function createWhatsappRouter({
       }
 
       const inboundMsg = await insertWhatsAppMessage({
-        db,
+        db: requestDb,
         companyId,
         contactId: contact.id,
         twilioMessageSid: twilioSid,
@@ -176,7 +202,8 @@ export function createWhatsappRouter({
         toNumber: toWhatsapp,
         body: bodyText || null,
         mediaUrl: mediaUrl ?? null,
-        transcript: transcriptText
+        transcript: transcriptText,
+        rawPayload: body
       });
 
       const parsed = await parseMovementText({
@@ -194,7 +221,7 @@ export function createWhatsappRouter({
       }
 
       await insertCaptureDraft({
-        db,
+        db: requestDb,
         companyId,
         contactId: contact.id,
         sourceMessageId: inboundMsg.id,

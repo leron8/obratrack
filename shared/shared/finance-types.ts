@@ -144,6 +144,9 @@ export type AccountMovementRow = {
   source_row: number | null;
   reconciled_at: string | null;
   created_by: string | null;
+  updated_by: string | null;
+  deleted_by: string | null;
+  deleted_reason: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

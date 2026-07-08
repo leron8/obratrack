@@ -147,6 +147,10 @@ erDiagram
     numeric amount
     date movement_date
     boolean is_internal_transfer
+    uuid created_by
+    uuid updated_by
+    uuid deleted_by
+    text deleted_reason
   }
 
   BANK_CHECKS {
@@ -424,6 +428,22 @@ erDiagram
     text storage_path
   }
 
+  AUDIT_EVENTS {
+    uuid id PK
+    uuid company_id
+    uuid actor_profile_id
+    timestamptz occurred_at
+    text actor_type
+    text source_module
+    text request_id
+    text action
+    text table_name
+    uuid record_id
+    text[] changed_fields
+    jsonb old_data
+    jsonb new_data
+  }
+
   COMPANIES ||--o{ PROFILES : has
   COMPANIES ||--o{ BUSINESS_PARTNERS : has
   COMPANIES ||--o{ PROJECTS : has
@@ -439,6 +459,10 @@ erDiagram
   COMPANIES ||--o{ WHATSAPP_MESSAGES : has
   COMPANIES ||--o{ WHATSAPP_CAPTURE_DRAFTS : has
   COMPANIES ||--o{ SOURCE_IMPORTS : has
+  COMPANIES ||--o{ AUDIT_EVENTS : audits
+
+  PROFILES ||--o{ ACCOUNT_MOVEMENTS : creates_updates_deletes
+  PROFILES ||--o{ AUDIT_EVENTS : actor
 
   BUSINESS_PARTNERS ||--o{ PROJECTS : client
   BUSINESS_PARTNERS ||--o{ SUPPLIER_CREDIT_ACCOUNTS : supplier

@@ -16,21 +16,52 @@ import type {
   PayrollLine
 } from "@expenses/shared";
 
+export type AuditContext = {
+  requestId: string;
+  actorProfileId: string | null;
+  actorType: "user" | "system" | "whatsapp_contact" | "import" | "api";
+  actorLabel: string | null;
+  sourceModule: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  httpMethod: string;
+  httpPath: string;
+  reason: string | null;
+  idempotencyKey: string | null;
+};
+
 // ── Client factory ────────────────────────────────────────────────────
 
 export function createSupabaseClient({
   url,
-  serviceRoleKey
+  serviceRoleKey,
+  globalHeaders
 }: {
   url: string;
   serviceRoleKey: string;
+  globalHeaders?: Record<string, string>;
 }): SupabaseClient {
   return createClient(url, serviceRoleKey, {
-    auth: { persistSession: false }
+    auth: { persistSession: false },
+    ...(globalHeaders ? { global: { headers: globalHeaders } } : {})
   });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
+
+function setActorColumn({
+  row,
+  column,
+  auditContext
+}: {
+  row: Record<string, unknown>;
+  column: "created_by" | "updated_by" | "deleted_by";
+  auditContext?: AuditContext;
+}) {
+  if (auditContext?.actorProfileId && row[column] === undefined) {
+    row[column] = auditContext.actorProfileId;
+  }
+}
 
 function normalizeMovementRow(row: AccountMovementRow): MovementResponse {
   return {
@@ -62,13 +93,17 @@ function normalizeMovementRow(row: AccountMovementRow): MovementResponse {
 export async function insertMovement({
   db,
   companyId,
-  payload
+  payload,
+  auditContext
 }: {
   db: SupabaseClient;
   companyId: string;
   payload: Record<string, unknown>;
+  auditContext?: AuditContext;
 }): Promise<MovementResponse> {
   const row = { ...payload, company_id: companyId };
+  setActorColumn({ row, column: "created_by", auditContext });
+
   const { data, error } = await db
     .from("account_movements")
     .insert(row)
@@ -82,29 +117,36 @@ export async function insertMovement({
 export async function createMovement({
   db,
   companyId,
-  payload
+  payload,
+  auditContext
 }: {
   db: SupabaseClient;
   companyId: string;
   payload: Record<string, unknown>;
+  auditContext?: AuditContext;
 }): Promise<MovementResponse> {
-  return insertMovement({ db, companyId, payload });
+  return insertMovement({ db, companyId, payload, auditContext });
 }
 
 export async function updateMovement({
   db,
   companyId,
   movementId,
-  payload
+  payload,
+  auditContext
 }: {
   db: SupabaseClient;
   companyId: string;
   movementId: string;
   payload: Record<string, unknown>;
+  auditContext?: AuditContext;
 }): Promise<MovementResponse> {
+  const row = { ...payload };
+  setActorColumn({ row, column: "updated_by", auditContext });
+
   const { data, error } = await db
     .from("account_movements")
-    .update(payload)
+    .update(row)
     .eq("id", movementId)
     .eq("company_id", companyId)
     .select("*")
@@ -117,15 +159,28 @@ export async function updateMovement({
 export async function deleteMovement({
   db,
   companyId,
-  movementId
+  movementId,
+  auditContext,
+  reason
 }: {
   db: SupabaseClient;
   companyId: string;
   movementId: string;
+  auditContext?: AuditContext;
+  reason?: string | null;
 }): Promise<void> {
+  const payload: Record<string, unknown> = {
+    deleted_at: new Date().toISOString()
+  };
+  setActorColumn({ row: payload, column: "deleted_by", auditContext });
+  const deleteReason = reason ?? auditContext?.reason ?? null;
+  if (deleteReason) {
+    payload.deleted_reason = deleteReason;
+  }
+
   const { error } = await db
     .from("account_movements")
-    .update({ deleted_at: new Date().toISOString() })
+    .update(payload)
     .eq("id", movementId)
     .eq("company_id", companyId);
 
@@ -632,12 +687,14 @@ export async function updateDraftStatus({
   db,
   draftId,
   status,
-  accountMovementId
+  accountMovementId,
+  confirmationMessageId
 }: {
   db: SupabaseClient;
   draftId: string;
   status: WhatsAppCaptureStatus;
   accountMovementId?: string;
+  confirmationMessageId?: string;
 }): Promise<void> {
   const update: Record<string, unknown> = { status };
   if (status === "confirmed") {
@@ -648,6 +705,9 @@ export async function updateDraftStatus({
   }
   if (accountMovementId) {
     update.account_movement_id = accountMovementId;
+  }
+  if (confirmationMessageId) {
+    update.confirmation_message_id = confirmationMessageId;
   }
 
   const { error } = await db
@@ -706,7 +766,8 @@ export async function insertWhatsAppMessage({
   toNumber,
   body,
   mediaUrl,
-  transcript
+  transcript,
+  rawPayload
 }: {
   db: SupabaseClient;
   companyId: string;
@@ -719,23 +780,27 @@ export async function insertWhatsAppMessage({
   body: string | null;
   mediaUrl?: string | null;
   transcript?: string | null;
+  rawPayload?: Record<string, unknown> | null;
 }): Promise<{ id: string }> {
-  const { data, error } = await db
-    .from("whatsapp_messages")
-    .insert({
-      company_id: companyId,
-      contact_id: contactId,
-      twilio_message_sid: twilioMessageSid,
-      direction,
-      message_kind: messageKind,
-      from_number: fromNumber,
-      to_number: toNumber,
-      body: body ?? null,
-      media_url: mediaUrl ?? null,
-      transcript: transcript ?? null
-    })
-    .select("id")
-    .single();
+  const row = {
+    company_id: companyId,
+    contact_id: contactId,
+    twilio_message_sid: twilioMessageSid,
+    direction,
+    message_kind: messageKind,
+    from_number: fromNumber,
+    to_number: toNumber,
+    body: body ?? null,
+    media_url: mediaUrl ?? null,
+    transcript: transcript ?? null,
+    raw_payload: rawPayload ?? {}
+  };
+
+  const query = twilioMessageSid
+    ? db.from("whatsapp_messages").upsert(row, { onConflict: "company_id,twilio_message_sid" })
+    : db.from("whatsapp_messages").insert(row);
+
+  const { data, error } = await query.select("id").single();
 
   if (error) throw error;
   return data;
