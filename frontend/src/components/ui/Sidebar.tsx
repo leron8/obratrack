@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LayoutDashboard, Folder, DollarSign, Users, ClipboardList, Truck, Building2, FileText, Settings2, CalendarCheck, CreditCard } from "lucide-react";
+import { cn } from "../../lib/utils";
 
 const navItems = [
   { href: "/", label: "Panel", icon: LayoutDashboard },
@@ -16,6 +20,8 @@ const navItems = [
 ];
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="hidden h-full w-full max-w-[280px] shrink-0 border-r border-slate-800 bg-slate-950 px-5 py-6 lg:block">
       <div className="mb-10">
@@ -26,13 +32,25 @@ export function Sidebar() {
       <nav className="space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const isActive = pathname === item.href;
           return (
             <Link
               href={item.href}
               key={item.href}
-              className="group flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "group flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium transition",
+                isActive
+                  ? "bg-slate-900 text-white shadow-soft ring-1 ring-cyan-500/20"
+                  : "text-slate-300 hover:bg-slate-900 hover:text-white"
+              )}
             >
-              <Icon className="h-4.5 w-4.5 text-slate-400 transition group-hover:text-cyan-400" />
+              <Icon
+                className={cn(
+                  "h-4.5 w-4.5 transition",
+                  isActive ? "text-cyan-300" : "text-slate-400 group-hover:text-cyan-400"
+                )}
+              />
               <span>{item.label}</span>
             </Link>
           );

@@ -1,11 +1,18 @@
 import { Search, Calendar, Bell, ChevronDown } from "lucide-react";
 
-export function Header() {
+type HeaderProps = {
+  eyebrow: string;
+  title: string;
+  description?: string;
+};
+
+export function Header({ eyebrow, title, description }: HeaderProps) {
   return (
     <div className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-center lg:justify-between">
       <div>
-        <p className="text-sm text-cyan-300">Gestion de construccion</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Panel de operaciones financieras</h1>
+        <p className="text-sm text-cyan-300">{eyebrow}</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">{title}</h1>
+        {description ? <p className="mt-3 max-w-2xl text-sm text-slate-400">{description}</p> : null}
       </div>
 
       <div className="grid w-full gap-3 sm:grid-cols-3 lg:w-auto lg:grid-cols-3">
