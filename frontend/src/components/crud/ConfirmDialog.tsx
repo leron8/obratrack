@@ -16,7 +16,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = "Confirm",
+  confirmLabel = "Confirmar",
   loading = false,
   onClose,
   onConfirm
@@ -30,10 +30,10 @@ export function ConfirmDialog({
       footer={
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button variant="secondary" disabled={loading} onClick={onClose}>
-            Cancel
+            Cancelar
           </Button>
           <Button variant="danger" disabled={loading} onClick={onConfirm}>
-            {loading ? "Deleting..." : confirmLabel}
+            {loading ? "Eliminando..." : confirmLabel}
           </Button>
         </div>
       }
@@ -44,7 +44,7 @@ export function ConfirmDialog({
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-semibold text-white">This action cannot be undone.</p>
+            <p className="font-semibold text-white">Esta accion no se puede deshacer.</p>
             <p className="mt-2 text-sm text-slate-300">{description}</p>
           </div>
         </div>

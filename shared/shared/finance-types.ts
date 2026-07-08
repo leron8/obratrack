@@ -92,6 +92,12 @@ export type FuelProduct = "Magna" | "Premium" | "Diesel" | "Other";
 
 export type WorkerType = "employee" | "contractor" | "destajista" | "partner";
 
+export type EmployeeStatus = "active" | "inactive" | "terminated";
+
+export type PayrollStatus = "draft" | "approved" | "paid" | "cancelled";
+
+export type LoanStatus = "active" | "paid" | "cancelled" | "written_off";
+
 export type WhatsAppCaptureStatus =
   | "pending_confirmation"
   | "confirmed"
@@ -182,6 +188,177 @@ export type MovementResponse = {
   created_at: string;
 };
 
+export type ProjectRow = {
+  id: string;
+  company_id: string;
+  client_id: string | null;
+  code: string | null;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  budget: string;
+  start_date: string | null;
+  estimated_end_date: string | null;
+  completed_at: string | null;
+  address: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type ProjectResponse = {
+  id: string;
+  company_id: string;
+  client_id: string | null;
+  client_name?: string | null;
+  code: string | null;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  budget: number;
+  start_date: string | null;
+  estimated_end_date: string | null;
+  completed_at: string | null;
+  address: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BusinessPartnerRow = {
+  id: string;
+  company_id: string;
+  partner_type: PartnerType;
+  name: string;
+  legal_name: string | null;
+  rfc: string | null;
+  tax_regime: string | null;
+  fiscal_postal_code: string | null;
+  email: string | null;
+  phone: string | null;
+  contact_name: string | null;
+  address: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type BusinessPartnerResponse = {
+  id: string;
+  company_id: string;
+  partner_type: PartnerType;
+  name: string;
+  legal_name: string | null;
+  rfc: string | null;
+  tax_regime: string | null;
+  fiscal_postal_code: string | null;
+  email: string | null;
+  phone: string | null;
+  contact_name: string | null;
+  address: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeRow = {
+  id: string;
+  company_id: string;
+  employee_code: string | null;
+  worker_type: WorkerType;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  rfc: string | null;
+  curp: string | null;
+  nss: string | null;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+  default_daily_rate: string | null;
+  default_weekly_salary: string | null;
+  status: EmployeeStatus;
+  hire_date: string | null;
+  termination_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type EmployeeResponse = {
+  id: string;
+  company_id: string;
+  employee_code: string | null;
+  worker_type: WorkerType;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  rfc: string | null;
+  curp: string | null;
+  nss: string | null;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+  default_daily_rate: number | null;
+  default_weekly_salary: number | null;
+  status: EmployeeStatus;
+  hire_date: string | null;
+  termination_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VehicleRow = {
+  id: string;
+  company_id: string;
+  plate: string | null;
+  economic_number: string | null;
+  vin: string | null;
+  brand: string | null;
+  model_name: string;
+  model_year: number | null;
+  color: string | null;
+  vehicle_type: string | null;
+  status: string;
+  purchase_date: string | null;
+  purchase_value: string | null;
+  default_project_id: string | null;
+  responsible_employee_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type VehicleResponse = {
+  id: string;
+  company_id: string;
+  plate: string | null;
+  economic_number: string | null;
+  vin: string | null;
+  brand: string | null;
+  model_name: string;
+  model_year: number | null;
+  color: string | null;
+  vehicle_type: string | null;
+  status: string;
+  purchase_date: string | null;
+  purchase_value: number | null;
+  default_project_id: string | null;
+  default_project_name?: string | null;
+  default_project_code?: string | null;
+  responsible_employee_id: string | null;
+  responsible_employee_name?: string | null;
+  responsible_employee_code?: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ── Parsed from natural language ───────────────────────────────────────
 
 export type ParsedMovement = {
@@ -268,23 +445,57 @@ export type PayrollRun = {
   week_number: number | null;
   period_start: string;
   period_end: string;
-  status: "draft" | "approved" | "paid" | "cancelled";
+  status: PayrollStatus;
   description: string | null;
+  source_file: string | null;
+  source_sheet: string | null;
   created_at: string;
+  updated_at: string;
+  line_count: number;
+  employee_count: number;
+  project_count: number;
+  gross_total: number;
+  loan_deductions_total: number;
+  other_deductions_total: number;
+  net_total: number;
 };
 
 export type PayrollLine = {
   id: string;
+  company_id: string;
   payroll_run_id: string;
   employee_id: string | null;
+  employee_name?: string | null;
+  employee_code?: string | null;
+  worker_name: string | null;
   project_id: string | null;
+  project_name?: string | null;
+  project_code?: string | null;
+  cost_center_id: string | null;
+  role_or_task: string | null;
   days_worked: number | null;
-  gross_amount: string;
-  loan_deduction_amount: string;
-  other_deduction_amount: string;
-  net_amount: string;
+  gross_amount: number;
+  loan_deduction_amount: number;
+  other_deduction_amount: number;
+  net_amount: number;
   payment_method: PaymentMethod;
+  account_movement_id: string | null;
   notes: string | null;
+  source_row: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeLoanBalance = {
+  employee_loan_id: string;
+  company_id: string;
+  employee_id: string;
+  employee_name: string;
+  loan_date: string;
+  principal_amount: number;
+  paid_amount: number;
+  balance_amount: number;
+  status: LoanStatus;
 };
 
 // ── Fuel ───────────────────────────────────────────────────────────────
@@ -358,4 +569,101 @@ export type WhatsAppCaptureDraftRow = {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// ═════════════════════════════════════════════════════════════════════════
+// Report types
+// ═════════════════════════════════════════════════════════════════════════
+
+export type ProjectProfitabilityRow = {
+  project_id: string;
+  project_name: string;
+  project_code: string | null;
+  project_status: ProjectStatus;
+  total_income: number;
+  total_direct_costs: number;
+  total_payroll: number;
+  total_fuel: number;
+  total_expenses: number;
+  overhead_allocated: number;
+  net_profit: number;
+  profit_margin_pct: number;
+};
+
+export type ProjectProfitabilityReport = {
+  projects: ProjectProfitabilityRow[];
+  totals: {
+    total_income: number;
+    total_direct_costs: number;
+    total_payroll: number;
+    total_fuel: number;
+    total_expenses: number;
+    overhead_allocated: number;
+    net_profit: number;
+    profit_margin_pct: number;
+  };
+  overhead_rate: number;
+  period_start: string;
+  period_end: string;
+};
+
+export type ExpenseByProjectRow = {
+  project_id: string;
+  project_name: string;
+  project_code: string | null;
+  category: string;
+  amount: number;
+  count: number;
+};
+
+export type IncomeByProjectRow = {
+  project_id: string;
+  project_name: string;
+  project_code: string | null;
+  client_name: string | null;
+  total_income: number;
+  movement_count: number;
+};
+
+export type CashFlowRow = {
+  account_id: string;
+  account_name: string;
+  account_type: AccountType;
+  opening_balance: number;
+  total_in: number;
+  total_out: number;
+  net_change: number;
+  closing_balance: number;
+};
+
+export type SupplierCreditRow = {
+  supplier_id: string;
+  supplier_name: string;
+  credit_account_name: string;
+  credit_limit: number;
+  total_purchases: number;
+  total_payments: number;
+  current_balance: number;
+  available_credit: number;
+};
+
+export type FuelConsumptionRow = {
+  vehicle_id: string;
+  vehicle_plate: string | null;
+  vehicle_name: string;
+  project_id: string | null;
+  project_name: string | null;
+  total_liters: number;
+  total_amount: number;
+  transaction_count: number;
+  product: FuelProduct;
+};
+
+export type ReportFilters = {
+  company_id: string;
+  project_id?: string;
+  start_date?: string;
+  end_date?: string;
+  account_id?: string;
+  category_id?: string;
 };

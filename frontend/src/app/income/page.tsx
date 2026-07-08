@@ -3,9 +3,9 @@ import { MovementCrudPage } from "../../components/movements/MovementCrudPage";
 const MOVEMENT_KIND_LABELS = {
   client_income: "Ingreso de cliente",
   cash_income: "Ingreso en efectivo",
-  invoice_exchange: "Intercambio factura",
-  partner_loan_repayment: "Pago prestamo socio",
-  employee_loan_repayment: "Pago prestamo empleado"
+  invoice_exchange: "Intercambio de factura",
+  partner_loan_repayment: "Pago de prestamo de socio",
+  employee_loan_repayment: "Pago de prestamo de empleado"
 } as const;
 
 export default function IncomePage() {
@@ -13,23 +13,23 @@ export default function IncomePage() {
     <MovementCrudPage
       direction="in"
       accent="cyan"
-      eyebrow="Income"
-      title="Income records"
-      description="Review the latest incoming movements in a paginated table and manage them from polished modal flows."
-      totalLabel="Loaded income"
-      totalHint="Sum of the latest records loaded from the backend."
-      createLabel="Add income"
-      editLabel="Edit income record"
-      recordLabel="income record"
-      emptyTitle="No income records found"
-      emptyDescription="Create your first income entry and it will show up here instantly."
+      eyebrow="Ingresos"
+      title="Registros de ingresos"
+      description="Revisa los movimientos de entrada mas recientes en una tabla paginada y administralos desde flujos modales mas claros."
+      totalLabel="Ingresos cargados"
+      totalHint="Suma de los registros mas recientes cargados desde el backend."
+      createLabel="Agregar ingreso"
+      editLabel="Editar registro de ingreso"
+      recordLabel="registro de ingreso"
+      emptyTitle="No se encontraron registros de ingresos"
+      emptyDescription="Crea tu primer ingreso y aparecera aqui al instante."
       defaultMovementKind="client_income"
       movementKindOptions={[
         { value: "client_income", label: "Ingreso de cliente" },
         { value: "cash_income", label: "Ingreso en efectivo" },
-        { value: "invoice_exchange", label: "Intercambio factura" },
-        { value: "partner_loan_repayment", label: "Pago prestamo socio" },
-        { value: "employee_loan_repayment", label: "Pago prestamo empleado" }
+        { value: "invoice_exchange", label: "Intercambio de factura" },
+        { value: "partner_loan_repayment", label: "Pago de prestamo de socio" },
+        { value: "employee_loan_repayment", label: "Pago de prestamo de empleado" }
       ]}
       movementKindLabels={MOVEMENT_KIND_LABELS}
       amountToneClass="text-emerald-300"

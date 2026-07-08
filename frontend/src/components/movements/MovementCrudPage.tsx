@@ -232,7 +232,8 @@ export function MovementCrudPage({
   );
 
   const displayCurrency = movements[0]?.currency ?? accounts[0]?.currency ?? form.currency;
-  const latestCreatedAt = movements[0]?.created_at ? formatCreatedAt(movements[0].created_at) : "No activity yet";
+  const latestCreatedAt =
+    movements[0]?.created_at ? formatCreatedAt(movements[0].created_at) : "Sin actividad reciente";
   const readOnly = role !== "admin";
 
   function resetForm() {
@@ -270,7 +271,7 @@ export function MovementCrudPage({
     event.preventDefault();
 
     if (!companyId) {
-      setError("Set a company ID first.");
+      setError("Primero define un ID de empresa.");
       return;
     }
 
@@ -342,7 +343,7 @@ export function MovementCrudPage({
   const tableColumns: Array<CrudTableColumn<MovementResponse>> = [
     {
       key: "movement_date",
-      header: "Date",
+      header: "Fecha",
       cell: (item) => (
         <div>
           <p className="font-semibold text-white">{item.movement_date}</p>
@@ -352,7 +353,7 @@ export function MovementCrudPage({
     },
     {
       key: "description",
-      header: "Record",
+      header: "Registro",
       cell: (item) => {
         const kindLabel = movementKindLabels[item.movement_kind] ?? item.movement_kind;
         return (
@@ -365,24 +366,24 @@ export function MovementCrudPage({
     },
     {
       key: "account",
-      header: "Account",
+      header: "Cuenta",
       cell: (item) => (
         <div>
-          <p className="font-medium text-white">{item.account_name ?? "Unassigned account"}</p>
+          <p className="font-medium text-white">{item.account_name ?? "Cuenta sin asignar"}</p>
           <p className="mt-1 text-xs text-slate-500">{item.account_id}</p>
         </div>
       )
     },
     {
       key: "notes",
-      header: "Notes",
+      header: "Notas",
       cell: (item) => (
-        <p className="max-w-xs text-sm leading-6 text-slate-300">{item.notes || "No notes"}</p>
+        <p className="max-w-xs text-sm leading-6 text-slate-300">{item.notes || "Sin notas"}</p>
       )
     },
     {
       key: "amount",
-      header: "Amount",
+      header: "Monto",
       align: "right",
       cell: (item) => (
         <div>
@@ -393,7 +394,7 @@ export function MovementCrudPage({
     },
     {
       key: "actions",
-      header: "Actions",
+      header: "Acciones",
       align: "right",
       cell: (item) => (
         <div className="flex justify-end gap-2">
@@ -404,7 +405,7 @@ export function MovementCrudPage({
             onClick={() => openEditDialog(item)}
           >
             <Pencil className="h-3.5 w-3.5" />
-            Edit
+            Editar
           </Button>
           <Button
             variant="secondary"
@@ -413,7 +414,7 @@ export function MovementCrudPage({
             onClick={() => setPendingDelete(item)}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Delete
+            Eliminar
           </Button>
         </div>
       )
@@ -437,26 +438,26 @@ export function MovementCrudPage({
         <div className="grid gap-4 xl:grid-cols-3">
           <KpiCard label={totalLabel} value={formatMoney(totalAmount, displayCurrency)} metric={totalHint} />
           <KpiCard
-            label="Loaded records"
+            label="Registros cargados"
             value={String(movements.length)}
             metric={
               deferredSearch
-                ? `${filteredMovements.length} records match your current search.`
-                : "Latest backend entries ready to edit."
+                ? `${filteredMovements.length} registros coinciden con tu busqueda actual.`
+                : "Ultimos registros del backend listos para editar."
             }
           />
           <Card className={cn("relative overflow-hidden bg-gradient-to-br", styles.accentPanel)}>
             <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Workspace status</p>
+            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Estado del espacio</p>
             <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(role)}</p>
             <p className="mt-2 text-sm text-slate-300">
               {readOnly
-                ? "Viewer mode keeps the table available while write actions stay locked."
-                : "Admin mode keeps creation, edits and deletions one click away."}
+                ? "El modo de solo lectura mantiene visible la tabla mientras bloquea las acciones de escritura."
+                : "El modo administrador deja la creacion, edicion y eliminacion a un clic."}
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <span className={cn("rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]", styles.accentBadge)}>
-                Latest activity
+                Actividad reciente
               </span>
               <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-300">
                 {latestCreatedAt}
@@ -468,35 +469,35 @@ export function MovementCrudPage({
         <Card className="overflow-hidden p-0">
           <form onSubmit={handleCompanySubmit} className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1.1fr)_220px_minmax(0,1fr)_auto_auto]">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Company ID</label>
+              <label className="text-sm font-medium text-slate-300">ID de empresa</label>
               <input
                 value={companyIdInput}
                 onChange={(event) => setCompanyIdInput(event.target.value)}
-                placeholder="UUID (company_id)"
+                placeholder="UUID de la empresa (company_id)"
                 className={inputClassName}
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Demo role</label>
+              <label className="text-sm font-medium text-slate-300">Rol de demo</label>
               <select
                 value={role}
                 onChange={(event) => setRole(event.target.value as "admin" | "viewer")}
                 className={inputClassName}
               >
-                <option value="admin">Admin</option>
-                <option value="viewer">Viewer</option>
+                <option value="admin">Administrador</option>
+                <option value="viewer">Solo lectura</option>
               </select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Search records</label>
+              <label className="text-sm font-medium text-slate-300">Buscar registros</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Description, notes, account..."
+                  placeholder="Descripcion, notas, cuenta..."
                   className={cn(inputClassName, "pl-11")}
                 />
               </div>
@@ -505,7 +506,7 @@ export function MovementCrudPage({
             <div className="flex items-end">
               <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} type="submit">
                 <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-                {loading ? "Loading..." : "Refresh"}
+                {loading ? "Cargando..." : "Actualizar"}
               </Button>
             </div>
 
@@ -523,27 +524,27 @@ export function MovementCrudPage({
 
           <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-4 text-sm text-slate-400">
             {companyId
-              ? `Active company: ${companyId}`
-              : "Set a company ID and refresh to load the latest records into the table."}
+              ? `Empresa activa: ${companyId}`
+              : "Define un ID de empresa y actualiza para cargar los registros mas recientes en la tabla."}
           </div>
         </Card>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Latest records</p>
+              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Registros recientes</p>
               <h2 className="mt-2 text-xl font-semibold text-white">{title}</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Directly edit or delete any row, with pagination to keep the flow lightweight.
+                Edita o elimina cualquier fila directamente, con paginacion para mantener el flujo ligero.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className={cn("rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em]", styles.accentBadge)}>
-                {filteredMovements.length} visible
+                {filteredMovements.length} visibles
               </span>
               {deferredSearch ? (
                 <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                  Search: {search}
+                  Busqueda: {search}
                 </span>
               ) : null}
             </div>
@@ -567,32 +568,32 @@ export function MovementCrudPage({
         open={isFormOpen}
         onClose={closeFormDialog}
         title={editingItem ? editLabel : createLabel}
-        description={`Complete the fields below to ${editingItem ? "update" : "create"} this ${recordLabel}.`}
+        description={`Completa los campos para ${editingItem ? "actualizar" : "crear"} este ${recordLabel}.`}
         footer={
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button variant="secondary" disabled={saving} onClick={() => closeFormDialog()}>
-              Cancel
+              Cancelar
             </Button>
             <Button className={cn(styles.primaryButton)} disabled={saving || readOnly} type="submit" form="movement-form">
-              {saving ? "Saving..." : editingItem ? "Save changes" : createLabel}
+              {saving ? "Guardando..." : editingItem ? "Guardar cambios" : createLabel}
             </Button>
           </div>
         }
       >
         <form id="movement-form" onSubmit={submit} className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-medium text-slate-300">Description</label>
+            <label className="text-sm font-medium text-slate-300">Descripcion</label>
             <input
               value={form.description}
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-              placeholder="Describe the movement"
+              placeholder="Describe el movimiento"
               className={inputClassName}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Movement date</label>
+            <label className="text-sm font-medium text-slate-300">Fecha del movimiento</label>
             <input
               type="date"
               value={form.movement_date}
@@ -603,7 +604,7 @@ export function MovementCrudPage({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Amount</label>
+            <label className="text-sm font-medium text-slate-300">Monto</label>
             <input
               type="number"
               step="0.01"
@@ -617,7 +618,7 @@ export function MovementCrudPage({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Currency</label>
+            <label className="text-sm font-medium text-slate-300">Moneda</label>
             <input
               value={form.currency}
               onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
@@ -629,14 +630,14 @@ export function MovementCrudPage({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Account</label>
+            <label className="text-sm font-medium text-slate-300">Cuenta</label>
             <select
               value={form.account_id}
               onChange={(event) => setForm((current) => ({ ...current, account_id: event.target.value }))}
               className={inputClassName}
               required
             >
-              <option value="">Select an account</option>
+              <option value="">Selecciona una cuenta</option>
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name} ({account.account_type})
@@ -646,7 +647,7 @@ export function MovementCrudPage({
           </div>
 
           <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-medium text-slate-300">Type</label>
+            <label className="text-sm font-medium text-slate-300">Tipo</label>
             <select
               value={form.movement_kind}
               onChange={(event) =>
@@ -663,11 +664,11 @@ export function MovementCrudPage({
           </div>
 
           <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-medium text-slate-300">Notes</label>
+            <label className="text-sm font-medium text-slate-300">Notas</label>
             <textarea
               value={form.notes}
               onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-              placeholder="Optional context"
+              placeholder="Contexto opcional"
               rows={4}
               className={cn(inputClassName, "resize-none")}
             />
@@ -677,13 +678,13 @@ export function MovementCrudPage({
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
-        title={`Delete ${recordLabel}`}
+        title={`Eliminar ${recordLabel}`}
         description={
           pendingDelete
-            ? `The record "${pendingDelete.description || movementKindLabels[pendingDelete.movement_kind] || pendingDelete.movement_kind}" will be removed from this list.`
+            ? `El registro "${pendingDelete.description || movementKindLabels[pendingDelete.movement_kind] || pendingDelete.movement_kind}" se eliminara de esta lista.`
             : ""
         }
-        confirmLabel="Delete record"
+        confirmLabel="Eliminar registro"
         loading={deleting}
         onClose={() => {
           if (!deleting) setPendingDelete(null);
