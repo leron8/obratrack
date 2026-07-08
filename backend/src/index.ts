@@ -12,6 +12,8 @@ import { tenantMiddleware } from "./routes/tenant";
 import { createWhatsappRouter } from "./routes/whatsapp";
 import { createTransactionsRouter } from "./routes/transactions";
 import { createDashboardRouter } from "./routes/dashboard";
+import { createProjectsRouter } from "./routes/projects";
+import { createDirectoryRouter } from "./routes/directory";
 
 async function main() {
   const env = loadEnv();
@@ -39,6 +41,8 @@ async function main() {
   app.use(createWhatsappRouter({ env, openaiClient, db }));
   app.use(tenantMiddleware(env));
   app.use(createTransactionsRouter({ env, openaiClient, db }));
+  app.use(createProjectsRouter({ env, db }));
+  app.use(createDirectoryRouter({ env, db }));
   app.use(createDashboardRouter({ db }));
 
   app.listen(env.PORT, () => {

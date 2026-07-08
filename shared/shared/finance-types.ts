@@ -182,6 +182,177 @@ export type MovementResponse = {
   created_at: string;
 };
 
+export type ProjectRow = {
+  id: string;
+  company_id: string;
+  client_id: string | null;
+  code: string | null;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  budget: string;
+  start_date: string | null;
+  estimated_end_date: string | null;
+  completed_at: string | null;
+  address: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type ProjectResponse = {
+  id: string;
+  company_id: string;
+  client_id: string | null;
+  client_name?: string | null;
+  code: string | null;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  budget: number;
+  start_date: string | null;
+  estimated_end_date: string | null;
+  completed_at: string | null;
+  address: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BusinessPartnerRow = {
+  id: string;
+  company_id: string;
+  partner_type: PartnerType;
+  name: string;
+  legal_name: string | null;
+  rfc: string | null;
+  tax_regime: string | null;
+  fiscal_postal_code: string | null;
+  email: string | null;
+  phone: string | null;
+  contact_name: string | null;
+  address: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type BusinessPartnerResponse = {
+  id: string;
+  company_id: string;
+  partner_type: PartnerType;
+  name: string;
+  legal_name: string | null;
+  rfc: string | null;
+  tax_regime: string | null;
+  fiscal_postal_code: string | null;
+  email: string | null;
+  phone: string | null;
+  contact_name: string | null;
+  address: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeRow = {
+  id: string;
+  company_id: string;
+  employee_code: string | null;
+  worker_type: WorkerType;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  rfc: string | null;
+  curp: string | null;
+  nss: string | null;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+  default_daily_rate: string | null;
+  default_weekly_salary: string | null;
+  status: EmployeeStatus;
+  hire_date: string | null;
+  termination_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type EmployeeResponse = {
+  id: string;
+  company_id: string;
+  employee_code: string | null;
+  worker_type: WorkerType;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  rfc: string | null;
+  curp: string | null;
+  nss: string | null;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+  default_daily_rate: number | null;
+  default_weekly_salary: number | null;
+  status: EmployeeStatus;
+  hire_date: string | null;
+  termination_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VehicleRow = {
+  id: string;
+  company_id: string;
+  plate: string | null;
+  economic_number: string | null;
+  vin: string | null;
+  brand: string | null;
+  model_name: string;
+  model_year: number | null;
+  color: string | null;
+  vehicle_type: string | null;
+  status: string;
+  purchase_date: string | null;
+  purchase_value: string | null;
+  default_project_id: string | null;
+  responsible_employee_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type VehicleResponse = {
+  id: string;
+  company_id: string;
+  plate: string | null;
+  economic_number: string | null;
+  vin: string | null;
+  brand: string | null;
+  model_name: string;
+  model_year: number | null;
+  color: string | null;
+  vehicle_type: string | null;
+  status: string;
+  purchase_date: string | null;
+  purchase_value: number | null;
+  default_project_id: string | null;
+  default_project_name?: string | null;
+  default_project_code?: string | null;
+  responsible_employee_id: string | null;
+  responsible_employee_name?: string | null;
+  responsible_employee_code?: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ── Parsed from natural language ───────────────────────────────────────
 
 export type ParsedMovement = {

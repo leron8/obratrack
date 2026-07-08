@@ -9,6 +9,16 @@ import type {
   ParsedMovement,
   PaymentMethod,
   AccountMovementRow,
+  BusinessPartnerRow,
+  BusinessPartnerResponse,
+  EmployeeRow,
+  EmployeeResponse,
+  ProjectRow,
+  ProjectResponse,
+  ProjectStatus,
+  PartnerType,
+  VehicleRow,
+  VehicleResponse,
   WhatsAppCaptureTarget,
   WhatsAppCaptureStatus,
   FinancialDocumentRow,
@@ -85,6 +95,109 @@ function normalizeMovementRow(row: AccountMovementRow): MovementResponse {
     notes: row.notes,
     is_internal_transfer: row.is_internal_transfer,
     created_at: row.created_at
+  };
+}
+
+function normalizeProjectRow(
+  row: ProjectRow & {
+    business_partners?: { name?: string | null } | null;
+  }
+): ProjectResponse {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    client_id: row.client_id,
+    client_name: row.business_partners?.name ?? null,
+    code: row.code,
+    name: row.name,
+    description: row.description,
+    status: row.status,
+    budget: Number(row.budget),
+    start_date: row.start_date,
+    estimated_end_date: row.estimated_end_date,
+    completed_at: row.completed_at,
+    address: row.address,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
+function normalizeBusinessPartnerRow(row: BusinessPartnerRow): BusinessPartnerResponse {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    partner_type: row.partner_type,
+    name: row.name,
+    legal_name: row.legal_name,
+    rfc: row.rfc,
+    tax_regime: row.tax_regime,
+    fiscal_postal_code: row.fiscal_postal_code,
+    email: row.email,
+    phone: row.phone,
+    contact_name: row.contact_name,
+    address: row.address,
+    status: row.status,
+    notes: row.notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
+function normalizeEmployeeRow(row: EmployeeRow): EmployeeResponse {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    employee_code: row.employee_code,
+    worker_type: row.worker_type,
+    first_name: row.first_name,
+    last_name: row.last_name,
+    full_name: row.full_name,
+    rfc: row.rfc,
+    curp: row.curp,
+    nss: row.nss,
+    email: row.email,
+    phone: row.phone,
+    position: row.position,
+    default_daily_rate: row.default_daily_rate === null ? null : Number(row.default_daily_rate),
+    default_weekly_salary: row.default_weekly_salary === null ? null : Number(row.default_weekly_salary),
+    status: row.status,
+    hire_date: row.hire_date,
+    termination_date: row.termination_date,
+    notes: row.notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
+function normalizeVehicleRow(
+  row: VehicleRow & {
+    projects?: { name?: string | null; code?: string | null } | null;
+    employees?: { full_name?: string | null; employee_code?: string | null } | null;
+  }
+): VehicleResponse {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    plate: row.plate,
+    economic_number: row.economic_number,
+    vin: row.vin,
+    brand: row.brand,
+    model_name: row.model_name,
+    model_year: row.model_year,
+    color: row.color,
+    vehicle_type: row.vehicle_type,
+    status: row.status,
+    purchase_date: row.purchase_date,
+    purchase_value: row.purchase_value === null ? null : Number(row.purchase_value),
+    default_project_id: row.default_project_id,
+    default_project_name: row.projects?.name ?? null,
+    default_project_code: row.projects?.code ?? null,
+    responsible_employee_id: row.responsible_employee_id,
+    responsible_employee_name: row.employees?.full_name ?? null,
+    responsible_employee_code: row.employees?.employee_code ?? null,
+    notes: row.notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at
   };
 }
 
@@ -301,6 +414,390 @@ export async function getMovement({
     is_internal_transfer: row.is_internal_transfer,
     created_at: row.created_at
   };
+}
+
+// ── Projects CRUD ─────────────────────────────────────────────────────
+
+export async function listProjects({
+  db,
+  companyId,
+  limit,
+  status
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  limit: number;
+  status?: ProjectStatus;
+}): Promise<ProjectResponse[]> {
+  let query = db
+    .from("projects")
+    .select("*, business_partners!client_id(name)")
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return ((data ?? []) as Array<ProjectRow & { business_partners?: { name?: string | null } | null }>).map(
+    normalizeProjectRow
+  );
+}
+
+export async function getProject({
+  db,
+  companyId,
+  projectId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  projectId: string;
+}): Promise<ProjectResponse | null> {
+  const { data, error } = await db
+    .from("projects")
+    .select("*, business_partners!client_id(name)")
+    .eq("id", projectId)
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+
+  return normalizeProjectRow(
+    data as ProjectRow & {
+      business_partners?: { name?: string | null } | null;
+    }
+  );
+}
+
+export async function createProject({
+  db,
+  companyId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payload: Record<string, unknown>;
+}): Promise<ProjectResponse> {
+  const { data, error } = await db
+    .from("projects")
+    .insert({ ...payload, company_id: companyId })
+    .select("*, business_partners!client_id(name)")
+    .single();
+
+  if (error) throw error;
+  return normalizeProjectRow(
+    data as ProjectRow & {
+      business_partners?: { name?: string | null } | null;
+    }
+  );
+}
+
+export async function updateProject({
+  db,
+  companyId,
+  projectId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  projectId: string;
+  payload: Record<string, unknown>;
+}): Promise<ProjectResponse> {
+  const { data, error } = await db
+    .from("projects")
+    .update(payload)
+    .eq("id", projectId)
+    .eq("company_id", companyId)
+    .select("*, business_partners!client_id(name)")
+    .single();
+
+  if (error) throw error;
+  return normalizeProjectRow(
+    data as ProjectRow & {
+      business_partners?: { name?: string | null } | null;
+    }
+  );
+}
+
+export async function deleteProject({
+  db,
+  companyId,
+  projectId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  projectId: string;
+}): Promise<void> {
+  const { error } = await db
+    .from("projects")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", projectId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
+}
+
+// ── Employees CRUD ────────────────────────────────────────────────────
+
+export async function listEmployees({
+  db,
+  companyId,
+  limit,
+  status
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  limit: number;
+  status?: EmployeeResponse["status"];
+}): Promise<EmployeeResponse[]> {
+  let query = db
+    .from("employees")
+    .select("*")
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return ((data ?? []) as EmployeeRow[]).map(normalizeEmployeeRow);
+}
+
+export async function getEmployee({
+  db,
+  companyId,
+  employeeId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  employeeId: string;
+}): Promise<EmployeeResponse | null> {
+  const { data, error } = await db
+    .from("employees")
+    .select("*")
+    .eq("id", employeeId)
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+
+  return normalizeEmployeeRow(data as EmployeeRow);
+}
+
+export async function createEmployee({
+  db,
+  companyId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payload: Record<string, unknown>;
+}): Promise<EmployeeResponse> {
+  const { data, error } = await db
+    .from("employees")
+    .insert({ ...payload, company_id: companyId })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return normalizeEmployeeRow(data as EmployeeRow);
+}
+
+export async function updateEmployee({
+  db,
+  companyId,
+  employeeId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  employeeId: string;
+  payload: Record<string, unknown>;
+}): Promise<EmployeeResponse> {
+  const { data, error } = await db
+    .from("employees")
+    .update(payload)
+    .eq("id", employeeId)
+    .eq("company_id", companyId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return normalizeEmployeeRow(data as EmployeeRow);
+}
+
+export async function deleteEmployee({
+  db,
+  companyId,
+  employeeId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  employeeId: string;
+}): Promise<void> {
+  const { error } = await db
+    .from("employees")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", employeeId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
+}
+
+// ── Vehicles CRUD ─────────────────────────────────────────────────────
+
+export async function listVehicles({
+  db,
+  companyId,
+  limit,
+  status
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  limit: number;
+  status?: string;
+}): Promise<VehicleResponse[]> {
+  let query = db
+    .from("vehicles")
+    .select("*, projects!default_project_id(name, code), employees!responsible_employee_id(full_name, employee_code)")
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return (
+    (data ?? []) as Array<
+      VehicleRow & {
+        projects?: { name?: string | null; code?: string | null } | null;
+        employees?: { full_name?: string | null; employee_code?: string | null } | null;
+      }
+    >
+  ).map(normalizeVehicleRow);
+}
+
+export async function getVehicle({
+  db,
+  companyId,
+  vehicleId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  vehicleId: string;
+}): Promise<VehicleResponse | null> {
+  const { data, error } = await db
+    .from("vehicles")
+    .select("*, projects!default_project_id(name, code), employees!responsible_employee_id(full_name, employee_code)")
+    .eq("id", vehicleId)
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+
+  return normalizeVehicleRow(
+    data as VehicleRow & {
+      projects?: { name?: string | null; code?: string | null } | null;
+      employees?: { full_name?: string | null; employee_code?: string | null } | null;
+    }
+  );
+}
+
+export async function createVehicle({
+  db,
+  companyId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payload: Record<string, unknown>;
+}): Promise<VehicleResponse> {
+  const { data, error } = await db
+    .from("vehicles")
+    .insert({ ...payload, company_id: companyId })
+    .select("*, projects!default_project_id(name, code), employees!responsible_employee_id(full_name, employee_code)")
+    .single();
+
+  if (error) throw error;
+  return normalizeVehicleRow(
+    data as VehicleRow & {
+      projects?: { name?: string | null; code?: string | null } | null;
+      employees?: { full_name?: string | null; employee_code?: string | null } | null;
+    }
+  );
+}
+
+export async function updateVehicle({
+  db,
+  companyId,
+  vehicleId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  vehicleId: string;
+  payload: Record<string, unknown>;
+}): Promise<VehicleResponse> {
+  const { data, error } = await db
+    .from("vehicles")
+    .update(payload)
+    .eq("id", vehicleId)
+    .eq("company_id", companyId)
+    .select("*, projects!default_project_id(name, code), employees!responsible_employee_id(full_name, employee_code)")
+    .single();
+
+  if (error) throw error;
+  return normalizeVehicleRow(
+    data as VehicleRow & {
+      projects?: { name?: string | null; code?: string | null } | null;
+      employees?: { full_name?: string | null; employee_code?: string | null } | null;
+    }
+  );
+}
+
+export async function deleteVehicle({
+  db,
+  companyId,
+  vehicleId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  vehicleId: string;
+}): Promise<void> {
+  const { error } = await db
+    .from("vehicles")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", vehicleId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
 }
 
 // ── Monthly report ────────────────────────────────────────────────────
@@ -846,6 +1343,119 @@ export async function listExpenseCategories({
 
   if (error) throw error;
   return data ?? [];
+}
+
+// ── Business partners (simple lookup) ────────────────────────────────
+
+export async function listBusinessPartners({
+  db,
+  companyId,
+  partnerType
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  partnerType?: PartnerType;
+}) {
+  let query = db
+    .from("business_partners")
+    .select("*")
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .order("name");
+
+  if (partnerType) {
+    query = query.eq("partner_type", partnerType);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return ((data ?? []) as BusinessPartnerRow[]).map(normalizeBusinessPartnerRow);
+}
+
+export async function getBusinessPartner({
+  db,
+  companyId,
+  partnerId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  partnerId: string;
+}): Promise<BusinessPartnerResponse | null> {
+  const { data, error } = await db
+    .from("business_partners")
+    .select("*")
+    .eq("id", partnerId)
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+
+  return normalizeBusinessPartnerRow(data as BusinessPartnerRow);
+}
+
+export async function createBusinessPartner({
+  db,
+  companyId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payload: Record<string, unknown>;
+}): Promise<BusinessPartnerResponse> {
+  const { data, error } = await db
+    .from("business_partners")
+    .insert({ ...payload, company_id: companyId })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return normalizeBusinessPartnerRow(data as BusinessPartnerRow);
+}
+
+export async function updateBusinessPartner({
+  db,
+  companyId,
+  partnerId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  partnerId: string;
+  payload: Record<string, unknown>;
+}): Promise<BusinessPartnerResponse> {
+  const { data, error } = await db
+    .from("business_partners")
+    .update(payload)
+    .eq("id", partnerId)
+    .eq("company_id", companyId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return normalizeBusinessPartnerRow(data as BusinessPartnerRow);
+}
+
+export async function deleteBusinessPartner({
+  db,
+  companyId,
+  partnerId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  partnerId: string;
+}): Promise<void> {
+  const { error } = await db
+    .from("business_partners")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", partnerId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
 }
 
 // ── Payroll ───────────────────────────────────────────────────────────
