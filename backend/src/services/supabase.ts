@@ -1572,6 +1572,676 @@ export async function deleteBusinessPartner({
   if (error) throw error;
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// Report queries
+// ═════════════════════════════════════════════════════════════════════════
+
+const REPORT_MOVEMENT_KINDS_INCOME = [
+  "client_income",
+  "cash_income",
+  "invoice_exchange",
+  "partner_loan_repayment",
+  "employee_loan_repayment"
+];
+
+const REPORT_MOVEMENT_KINDS_DIRECT_COST = [
+  "expense",
+  "supplier_payment",
+  "supplier_credit_purchase"
+];
+
+export async function getProjectProfitability({
+  db,
+  companyId,
+  startDate,
+  endDate,
+  projectId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  startDate?: string;
+  endDate?: string;
+  projectId?: string;
+}): Promise<import("@expenses/shared").ProjectProfitabilityReport> {
+  const now = new Date();
+  const pStart = startDate || new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const pEnd = endDate || now.toISOString().slice(0, 10);
+
+  // 1. Get all active projects
+  let projectsQuery = db
+    .from("projects")
+    .select("id, name, code, status")
+    .eq("company_id", companyId)
+    .is("deleted_at", null);
+
+  if (projectId) {
+    projectsQuery = projectsQuery.eq("id", projectId);
+  }
+
+  const { data: projects, error: projectsErr } = await projectsQuery;
+  if (projectsErr) throw projectsErr;
+
+  const projectIds = (projects ?? []).map((p: any) => p.id);
+  if (projectIds.length === 0) {
+    return {
+      projects: [],
+      totals: {
+        total_income: 0,
+        total_direct_costs: 0,
+        total_payroll: 0,
+        total_fuel: 0,
+        total_expenses: 0,
+        overhead_allocated: 0,
+        net_profit: 0,
+        profit_margin_pct: 0
+      },
+      overhead_rate: 12.5,
+      period_start: pStart,
+      period_end: pEnd
+    };
+  }
+
+  // 2. Get project income
+  const { data: incomeData, error: incomeErr } = await db
+    .from("account_movements")
+    .select("project_id, amount")
+    .eq("company_id", companyId)
+    .eq("direction", "in")
+    .in("movement_kind", REPORT_MOVEMENT_KINDS_INCOME)
+    .eq("status", "posted")
+    .is("deleted_at", null)
+    .in("project_id", projectIds)
+    .gte("movement_date", pStart)
+    .lte("movement_date", pEnd);
+
+  if (incomeErr) throw incomeErr;
+
+  const incomeByProject = new Map<string, number>();
+  for (const row of (incomeData ?? []) as Array<{ project_id: string; amount: string }>) {
+    const pid = row.project_id;
+    incomeByProject.set(pid, (incomeByProject.get(pid) ?? 0) + Number(row.amount));
+  }
+
+  // 3. Get project direct costs (expenses, supplier payments)
+  const { data: costData, error: costErr } = await db
+    .from("account_movements")
+    .select("project_id, amount")
+    .eq("company_id", companyId)
+    .eq("direction", "out")
+    .in("movement_kind", REPORT_MOVEMENT_KINDS_DIRECT_COST)
+    .eq("status", "posted")
+    .is("deleted_at", null)
+    .in("project_id", projectIds)
+    .gte("movement_date", pStart)
+    .lte("movement_date", pEnd);
+
+  if (costErr) throw costErr;
+
+  const costsByProject = new Map<string, number>();
+  for (const row of (costData ?? []) as Array<{ project_id: string; amount: string }>) {
+    const pid = row.project_id;
+    costsByProject.set(pid, (costsByProject.get(pid) ?? 0) + Number(row.amount));
+  }
+
+  // 4. Get project fuel expenses
+  const { data: fuelData, error: fuelErr } = await db
+    .from("fuel_transactions")
+    .select("project_id, gross_amount")
+    .eq("company_id", companyId)
+    .in("project_id", projectIds)
+    .is("deleted_at", null)
+    .gte("transaction_at", pStart)
+    .lte("transaction_at", pEnd);
+
+  if (fuelErr) throw fuelErr;
+
+  const fuelByProject = new Map<string, number>();
+  for (const row of (fuelData ?? []) as Array<{ project_id: string; gross_amount: string }>) {
+    const pid = row.project_id;
+    fuelByProject.set(pid, (fuelByProject.get(pid) ?? 0) + Number(row.gross_amount));
+  }
+
+  // 5. Get project payroll
+  const { data: payrollData, error: payrollErr } = await db
+    .from("payroll_lines")
+    .select("project_id, gross_amount, loan_deduction_amount, other_deduction_amount, net_amount")
+    .eq("company_id", companyId)
+    .in("project_id", projectIds);
+
+  if (payrollErr) throw payrollErr;
+
+  const payrollByProject = new Map<string, number>();
+  for (const row of (payrollData ?? []) as Array<{
+    project_id: string;
+    gross_amount: string;
+    loan_deduction_amount: string;
+    other_deduction_amount: string;
+    net_amount: string;
+  }>) {
+    const pid = row.project_id;
+    payrollByProject.set(pid, (payrollByProject.get(pid) ?? 0) + Number(row.gross_amount));
+  }
+
+  // 6. Get total overhead (indirect expenses - non-project movements with 'out' direction and expense/supplier kind)
+  const { data: overheadData, error: overheadErr } = await db
+    .from("account_movements")
+    .select("amount")
+    .eq("company_id", companyId)
+    .eq("direction", "out")
+    .in("movement_kind", REPORT_MOVEMENT_KINDS_DIRECT_COST)
+    .eq("status", "posted")
+    .is("deleted_at", null)
+    .is("project_id", null)  // No project = indirect/overhead
+    .gte("movement_date", pStart)
+    .lte("movement_date", pEnd);
+
+  if (overheadErr) throw overheadErr;
+
+  let totalOverhead = 0;
+  for (const row of (overheadData ?? []) as Array<{ amount: string }>) {
+    totalOverhead += Number(row.amount);
+  }
+
+  // Also include payroll overhead (payroll without project)
+  const { data: payrollOverheadData, error: payrollOverheadErr } = await db
+    .from("payroll_lines")
+    .select("gross_amount")
+    .eq("company_id", companyId)
+    .is("project_id", null);
+
+  if (!payrollOverheadErr) {
+    for (const row of (payrollOverheadData ?? []) as Array<{ gross_amount: string }>) {
+      totalOverhead += Number(row.gross_amount);
+    }
+  }
+
+  // Default overhead rate = 12.5% (as seen in the Excel RESUMEN DE OBRAS)
+  const overheadRate = 12.5;
+
+  // 7. Build project rows
+  const projectsResult: import("@expenses/shared").ProjectProfitabilityRow[] = (projects ?? []).map((p: any) => {
+    const totalIncome = incomeByProject.get(p.id) ?? 0;
+    const directCosts = costsByProject.get(p.id) ?? 0;
+    const totalPayroll = payrollByProject.get(p.id) ?? 0;
+    const totalFuel = fuelByProject.get(p.id) ?? 0;
+    const totalExpenses = directCosts + totalPayroll + totalFuel;
+    const overheadAllocated = totalExpenses * (overheadRate / 100);
+    const netProfit = totalIncome - totalExpenses - overheadAllocated;
+    const profitMarginPct = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
+
+    return {
+      project_id: p.id,
+      project_name: p.name,
+      project_code: p.code,
+      project_status: p.status,
+      total_income: Math.round(totalIncome * 100) / 100,
+      total_direct_costs: Math.round(directCosts * 100) / 100,
+      total_payroll: Math.round(totalPayroll * 100) / 100,
+      total_fuel: Math.round(totalFuel * 100) / 100,
+      total_expenses: Math.round(totalExpenses * 100) / 100,
+      overhead_allocated: Math.round(overheadAllocated * 100) / 100,
+      net_profit: Math.round(netProfit * 100) / 100,
+      profit_margin_pct: Math.round(profitMarginPct * 100) / 100
+    };
+  });
+
+  // Calculate totals
+  const totals = projectsResult.reduce(
+    (acc, p) => {
+      acc.total_income += p.total_income;
+      acc.total_direct_costs += p.total_direct_costs;
+      acc.total_payroll += p.total_payroll;
+      acc.total_fuel += p.total_fuel;
+      acc.total_expenses += p.total_expenses;
+      acc.overhead_allocated += p.overhead_allocated;
+      acc.net_profit += p.net_profit;
+      return acc;
+    },
+    {
+      total_income: 0,
+      total_direct_costs: 0,
+      total_payroll: 0,
+      total_fuel: 0,
+      total_expenses: 0,
+      overhead_allocated: 0,
+      net_profit: 0,
+      profit_margin_pct: 0
+    }
+  );
+  totals.profit_margin_pct = totals.total_income > 0 ? (totals.net_profit / totals.total_income) * 100 : 0;
+
+  return {
+    projects: projectsResult,
+    totals: {
+      ...totals,
+      profit_margin_pct: Math.round(totals.profit_margin_pct * 100) / 100
+    },
+    overhead_rate: overheadRate,
+    period_start: pStart,
+    period_end: pEnd
+  };
+}
+
+export async function getExpensesByProject({
+  db,
+  companyId,
+  startDate,
+  endDate,
+  projectId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  startDate?: string;
+  endDate?: string;
+  projectId?: string;
+}): Promise<import("@expenses/shared").ExpenseByProjectRow[]> {
+  const now = new Date();
+  const pStart = startDate || new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const pEnd = endDate || now.toISOString().slice(0, 10);
+
+  let query = db
+    .from("account_movements")
+    .select("project_id, amount, expense_category_id, financial_accounts!account_id(name)")
+    .eq("company_id", companyId)
+    .eq("direction", "out")
+    .in("movement_kind", REPORT_MOVEMENT_KINDS_DIRECT_COST)
+    .eq("status", "posted")
+    .is("deleted_at", null)
+    .gte("movement_date", pStart)
+    .lte("movement_date", pEnd);
+
+  if (projectId) {
+    query = query.eq("project_id", projectId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  // Get category names
+  const rows = (data ?? []) as Array<{
+    project_id: string | null;
+    amount: string;
+    expense_category_id: string | null;
+    financial_accounts?: { name?: string } | null;
+  }>;
+
+  const catIds = Array.from(new Set(rows.map(r => r.expense_category_id).filter(Boolean) as string[]));
+  let catMap = new Map<string, string>();
+  if (catIds.length > 0) {
+    const { data: cats } = await db
+      .from("expense_categories")
+      .select("id, name")
+      .in("id", catIds);
+    if (cats) {
+      catMap = new Map((cats as Array<{ id: string; name: string }>).map(c => [c.id, c.name]));
+    }
+  }
+
+  // Get project names
+  const projIds = Array.from(new Set(rows.map(r => r.project_id).filter(Boolean) as string[]));
+  let projMap = new Map<string, { name: string; code: string | null }>();
+  if (projIds.length > 0) {
+    const { data: projs } = await db
+      .from("projects")
+      .select("id, name, code")
+      .in("id", projIds);
+    if (projs) {
+      projMap = new Map((projs as Array<{ id: string; name: string; code: string | null }>).map(p => [p.id, { name: p.name, code: p.code }]));
+    }
+  }
+
+  const aggMap = new Map<string, { project_id: string; category: string; amount: number; count: number }>();
+  for (const row of rows) {
+    if (!row.project_id) continue;
+    const proj = projMap.get(row.project_id);
+    const projectName = proj?.name ?? "Sin proyecto";
+    const cat = row.expense_category_id ? (catMap.get(row.expense_category_id) ?? "Sin categoría") : "Sin categoría";
+    const key = `${row.project_id}:${cat}`;
+    const existing = aggMap.get(key) ?? {
+      project_id: row.project_id,
+      category: cat,
+      amount: 0,
+      count: 0
+    };
+    existing.amount += Number(row.amount);
+    existing.count += 1;
+    aggMap.set(key, existing);
+  }
+
+  return Array.from(aggMap.values())
+    .map(r => ({
+      ...r,
+      project_name: projMap.get(r.project_id)?.name ?? "Sin proyecto",
+      project_code: projMap.get(r.project_id)?.code ?? null,
+      amount: Math.round(r.amount * 100) / 100
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
+export async function getIncomeByProject({
+  db,
+  companyId,
+  startDate,
+  endDate,
+  projectId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  startDate?: string;
+  endDate?: string;
+  projectId?: string;
+}): Promise<import("@expenses/shared").IncomeByProjectRow[]> {
+  const now = new Date();
+  const pStart = startDate || new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const pEnd = endDate || now.toISOString().slice(0, 10);
+
+  let query = db
+    .from("account_movements")
+    .select("project_id, amount, business_partner_id")
+    .eq("company_id", companyId)
+    .eq("direction", "in")
+    .in("movement_kind", REPORT_MOVEMENT_KINDS_INCOME)
+    .eq("status", "posted")
+    .is("deleted_at", null)
+    .gte("movement_date", pStart)
+    .lte("movement_date", pEnd);
+
+  if (projectId) {
+    query = query.eq("project_id", projectId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data ?? []) as Array<{
+    project_id: string | null;
+    amount: string;
+    business_partner_id: string | null;
+  }>;
+
+  const projIds = Array.from(new Set(rows.map(r => r.project_id).filter(Boolean) as string[]));
+  let projMap = new Map<string, { name: string; code: string | null }>();
+  if (projIds.length > 0) {
+    const { data: projs } = await db
+      .from("projects")
+      .select("id, name, code")
+      .in("id", projIds);
+    if (projs) {
+      projMap = new Map((projs as Array<{ id: string; name: string; code: string | null }>).map(p => [p.id, { name: p.name, code: p.code }]));
+    }
+  }
+
+  const aggMap = new Map<string, { project_id: string; total_income: number; count: number }>();
+  for (const row of rows) {
+    if (!row.project_id) continue;
+    const key = row.project_id;
+    const existing = aggMap.get(key) ?? { project_id: key, total_income: 0, count: 0 };
+    existing.total_income += Number(row.amount);
+    existing.count += 1;
+    aggMap.set(key, existing);
+  }
+
+  return Array.from(aggMap.values())
+    .map(r => ({
+      project_id: r.project_id,
+      project_name: projMap.get(r.project_id)?.name ?? "Sin proyecto",
+      project_code: projMap.get(r.project_id)?.code ?? null,
+      client_name: null,
+      total_income: Math.round(r.total_income * 100) / 100,
+      movement_count: r.count
+    }))
+    .sort((a, b) => b.total_income - a.total_income);
+}
+
+export async function getCashFlowReport({
+  db,
+  companyId,
+  startDate,
+  endDate,
+  accountId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  startDate?: string;
+  endDate?: string;
+  accountId?: string;
+}): Promise<import("@expenses/shared").CashFlowRow[]> {
+  const now = new Date();
+  const pStart = startDate || new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const pEnd = endDate || now.toISOString().slice(0, 10);
+
+  let accountsQuery = db
+    .from("financial_accounts")
+    .select("id, name, account_type, opening_balance, currency, status")
+    .eq("company_id", companyId)
+    .eq("status", "active")
+    .is("deleted_at", null);
+
+  if (accountId) {
+    accountsQuery = accountsQuery.eq("id", accountId);
+  }
+
+  const { data: accounts, error: accountsErr } = await accountsQuery;
+  if (accountsErr) throw accountsErr;
+
+  const accountIds = (accounts ?? []).map((a: any) => a.id);
+  if (accountIds.length === 0) return [];
+
+  let movQuery = db
+    .from("account_movements")
+    .select("account_id, direction, amount")
+    .eq("company_id", companyId)
+    .eq("status", "posted")
+    .is("deleted_at", null)
+    .in("account_id", accountIds)
+    .gte("movement_date", pStart)
+    .lte("movement_date", pEnd);
+
+  const { data: movements, error: movErr } = await movQuery;
+  if (movErr) throw movErr;
+
+  const movRows = (movements ?? []) as Array<{ account_id: string; direction: string; amount: string }>;
+
+  const inByAccount = new Map<string, number>();
+  const outByAccount = new Map<string, number>();
+  for (const row of movRows) {
+    const amt = Number(row.amount);
+    if (row.direction === "in") {
+      inByAccount.set(row.account_id, (inByAccount.get(row.account_id) ?? 0) + amt);
+    } else {
+      outByAccount.set(row.account_id, (outByAccount.get(row.account_id) ?? 0) + amt);
+    }
+  }
+
+  return (accounts ?? []).map((acc: any) => {
+    const openingBalance = Number(acc.opening_balance);
+    const totalIn = Math.round((inByAccount.get(acc.id) ?? 0) * 100) / 100;
+    const totalOut = Math.round((outByAccount.get(acc.id) ?? 0) * 100) / 100;
+    const netChange = totalIn - totalOut;
+    const closingBalance = openingBalance + netChange;
+
+    return {
+      account_id: acc.id,
+      account_name: acc.name,
+      account_type: acc.account_type,
+      opening_balance: openingBalance,
+      total_in: totalIn,
+      total_out: totalOut,
+      net_change: Math.round(netChange * 100) / 100,
+      closing_balance: Math.round(closingBalance * 100) / 100
+    };
+  });
+}
+
+export async function getSupplierCreditReport({
+  db,
+  companyId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+}): Promise<import("@expenses/shared").SupplierCreditRow[]> {
+  const { data: creditAccounts, error: creditErr } = await db
+    .from("supplier_credit_accounts")
+    .select("*, business_partners!supplier_id(name)")
+    .eq("company_id", companyId)
+    .is("business_partners.deleted_at", null);
+
+  if (creditErr) throw creditErr;
+
+  const accounts = (creditAccounts ?? []) as Array<{
+    id: string;
+    supplier_id: string;
+    name: string;
+    credit_limit: string | null;
+    business_partners?: { name?: string } | null;
+  }>;
+
+  const supplierIds = accounts.map(a => a.supplier_id);
+  if (supplierIds.length === 0) return [];
+
+  // Get total purchases (financial documents payable)
+  const { data: docs } = await db
+    .from("financial_documents")
+    .select("business_partner_id, total_amount, supplier_credit_account_id")
+    .eq("company_id", companyId)
+    .eq("document_direction", "payable")
+    .eq("status", "received")
+    .in("supplier_credit_account_id", accounts.map(a => a.id));
+
+  const docRows = (docs ?? []) as Array<{
+    business_partner_id: string | null;
+    total_amount: string;
+    supplier_credit_account_id: string | null;
+  }>;
+
+  const purchasesByCredit = new Map<string, number>();
+  for (const row of docRows) {
+    if (row.supplier_credit_account_id) {
+      purchasesByCredit.set(row.supplier_credit_account_id, (purchasesByCredit.get(row.supplier_credit_account_id) ?? 0) + Number(row.total_amount));
+    }
+  }
+
+  // Get payments from account movements
+  const { data: payments } = await db
+    .from("account_movements")
+    .select("business_partner_id, amount")
+    .eq("company_id", companyId)
+    .eq("direction", "out")
+    .eq("movement_kind", "supplier_payment")
+    .eq("status", "posted")
+    .is("deleted_at", null)
+    .in("business_partner_id", supplierIds);
+
+  const payRows = (payments ?? []) as Array<{ business_partner_id: string | null; amount: string }>;
+  const paymentsBySupplier = new Map<string, number>();
+  for (const row of payRows) {
+    if (row.business_partner_id) {
+      paymentsBySupplier.set(row.business_partner_id, (paymentsBySupplier.get(row.business_partner_id) ?? 0) + Number(row.amount));
+    }
+  }
+
+  return accounts.map(acc => {
+    const creditLimit = Number(acc.credit_limit ?? 0);
+    const totalPurchases = Math.round((purchasesByCredit.get(acc.id) ?? 0) * 100) / 100;
+    const totalPayments = Math.round((paymentsBySupplier.get(acc.supplier_id) ?? 0) * 100) / 100;
+    const currentBalance = totalPurchases - totalPayments;
+
+    return {
+      supplier_id: acc.supplier_id,
+      supplier_name: acc.business_partners?.name ?? "Proveedor desconocido",
+      credit_account_name: acc.name,
+      credit_limit: creditLimit,
+      total_purchases: totalPurchases,
+      total_payments: totalPayments,
+      current_balance: Math.round(Math.max(0, currentBalance) * 100) / 100,
+      available_credit: Math.round(Math.max(0, creditLimit - Math.max(0, currentBalance)) * 100) / 100
+    };
+  });
+}
+
+export async function getFuelConsumptionReport({
+  db,
+  companyId,
+  startDate,
+  endDate,
+  projectId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  startDate?: string;
+  endDate?: string;
+  projectId?: string;
+}): Promise<import("@expenses/shared").FuelConsumptionRow[]> {
+  const now = new Date();
+  const pStart = startDate || new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const pEnd = endDate || now.toISOString().slice(0, 10);
+
+  let query = db
+    .from("fuel_transactions")
+    .select("vehicle_id, project_id, product, liters, gross_amount, vehicles!vehicle_id(plate, model_name), projects!project_id(name)")
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .gte("transaction_at", pStart)
+    .lte("transaction_at", pEnd);
+
+  if (projectId) {
+    query = query.eq("project_id", projectId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data ?? []) as Array<{
+    vehicle_id: string | null;
+    project_id: string | null;
+    product: string;
+    liters: string;
+    gross_amount: string;
+    vehicles?: { plate?: string | null; model_name?: string } | null;
+    projects?: { name?: string | null } | null;
+  }>;
+
+  const aggMap = new Map<string, {
+    vehicle_id: string;
+    project_id: string | null;
+    product: string;
+    total_liters: number;
+    total_amount: number;
+    count: number;
+  }>();
+
+  for (const row of rows) {
+    if (!row.vehicle_id) continue;
+    const key = `${row.vehicle_id}:${row.project_id ?? "none"}:${row.product}`;
+    const existing = aggMap.get(key) ?? {
+      vehicle_id: row.vehicle_id,
+      project_id: row.project_id,
+      product: row.product,
+      total_liters: 0,
+      total_amount: 0,
+      count: 0
+    };
+    existing.total_liters += Number(row.liters);
+    existing.total_amount += Number(row.gross_amount);
+    existing.count += 1;
+    aggMap.set(key, existing);
+  }
+
+  return Array.from(aggMap.values())
+    .map(r => ({
+      vehicle_id: r.vehicle_id,
+      vehicle_plate: rows.find(x => x.vehicle_id === r.vehicle_id)?.vehicles?.plate ?? null,
+      vehicle_name: rows.find(x => x.vehicle_id === r.vehicle_id)?.vehicles?.model_name ?? "Desconocido",
+      project_id: r.project_id,
+      project_name: r.project_id ? (rows.find(x => x.project_id === r.project_id)?.projects?.name ?? null) : null,
+      total_liters: Math.round(r.total_liters * 100) / 100,
+      total_amount: Math.round(r.total_amount * 100) / 100,
+      transaction_count: r.count,
+      product: r.product as import("@expenses/shared").FuelProduct
+    }))
+    .sort((a, b) => b.total_amount - a.total_amount);
+}
+
 // ── Payroll ───────────────────────────────────────────────────────────
 
 export async function listPayrollRuns({

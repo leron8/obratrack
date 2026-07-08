@@ -570,3 +570,100 @@ export type WhatsAppCaptureDraftRow = {
   created_at: string;
   updated_at: string;
 };
+
+// ═════════════════════════════════════════════════════════════════════════
+// Report types
+// ═════════════════════════════════════════════════════════════════════════
+
+export type ProjectProfitabilityRow = {
+  project_id: string;
+  project_name: string;
+  project_code: string | null;
+  project_status: ProjectStatus;
+  total_income: number;
+  total_direct_costs: number;
+  total_payroll: number;
+  total_fuel: number;
+  total_expenses: number;
+  overhead_allocated: number;
+  net_profit: number;
+  profit_margin_pct: number;
+};
+
+export type ProjectProfitabilityReport = {
+  projects: ProjectProfitabilityRow[];
+  totals: {
+    total_income: number;
+    total_direct_costs: number;
+    total_payroll: number;
+    total_fuel: number;
+    total_expenses: number;
+    overhead_allocated: number;
+    net_profit: number;
+    profit_margin_pct: number;
+  };
+  overhead_rate: number;
+  period_start: string;
+  period_end: string;
+};
+
+export type ExpenseByProjectRow = {
+  project_id: string;
+  project_name: string;
+  project_code: string | null;
+  category: string;
+  amount: number;
+  count: number;
+};
+
+export type IncomeByProjectRow = {
+  project_id: string;
+  project_name: string;
+  project_code: string | null;
+  client_name: string | null;
+  total_income: number;
+  movement_count: number;
+};
+
+export type CashFlowRow = {
+  account_id: string;
+  account_name: string;
+  account_type: AccountType;
+  opening_balance: number;
+  total_in: number;
+  total_out: number;
+  net_change: number;
+  closing_balance: number;
+};
+
+export type SupplierCreditRow = {
+  supplier_id: string;
+  supplier_name: string;
+  credit_account_name: string;
+  credit_limit: number;
+  total_purchases: number;
+  total_payments: number;
+  current_balance: number;
+  available_credit: number;
+};
+
+export type FuelConsumptionRow = {
+  vehicle_id: string;
+  vehicle_plate: string | null;
+  vehicle_name: string;
+  project_id: string | null;
+  project_name: string | null;
+  total_liters: number;
+  total_amount: number;
+  transaction_count: number;
+  product: FuelProduct;
+};
+
+export type ReportFilters = {
+  company_id: string;
+  project_id?: string;
+  start_date?: string;
+  end_date?: string;
+  account_id?: string;
+  category_id?: string;
+};
