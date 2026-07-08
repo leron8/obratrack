@@ -461,6 +461,9 @@ CREATE TABLE public.account_movements (
   source_row integer,
   reconciled_at timestamptz,
   created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  deleted_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  deleted_reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
@@ -894,6 +897,253 @@ CREATE TABLE public.attachments (
   )
 );
 
+CREATE TABLE public.audit_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  actor_profile_id uuid,
+  actor_type text NOT NULL DEFAULT 'unknown',
+  actor_label text,
+  source_module text,
+  request_id text,
+  idempotency_key text,
+  ip_address inet,
+  user_agent text,
+  http_method text,
+  http_path text,
+  action text NOT NULL,
+  table_schema text NOT NULL,
+  table_name text NOT NULL,
+  record_id uuid,
+  record_pk jsonb NOT NULL DEFAULT '{}'::jsonb,
+  old_data jsonb,
+  new_data jsonb,
+  changed_fields text[] NOT NULL DEFAULT ARRAY[]::text[],
+  reason text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION public.audit_request_header(header_name text)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  headers_text text;
+  headers_json jsonb;
+  value text;
+BEGIN
+  headers_text := current_setting('request.headers', true);
+  IF headers_text IS NULL OR headers_text = '' THEN
+    RETURN NULL;
+  END IF;
+
+  headers_json := headers_text::jsonb;
+  value := headers_json ->> lower(header_name);
+  IF value IS NULL THEN
+    value := headers_json ->> header_name;
+  END IF;
+
+  RETURN NULLIF(value, '');
+EXCEPTION WHEN others THEN
+  RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.audit_uuid_or_null(value text)
+RETURNS uuid
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+  IF value IS NULL OR value = '' THEN
+    RETURN NULL;
+  END IF;
+
+  RETURN value::uuid;
+EXCEPTION WHEN others THEN
+  RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.audit_inet_or_null(value text)
+RETURNS inet
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+  IF value IS NULL OR value = '' THEN
+    RETURN NULL;
+  END IF;
+
+  RETURN split_part(value, ',', 1)::inet;
+EXCEPTION WHEN others THEN
+  RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.audit_capture_row_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  old_data jsonb;
+  new_data jsonb;
+  row_data jsonb;
+  company_uuid uuid;
+  actor_uuid uuid;
+  record_uuid uuid;
+  changed text[];
+  action_name text;
+  old_status text;
+  new_status text;
+  source_text text;
+  reason_text text;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    old_data := NULL;
+    new_data := to_jsonb(NEW);
+  ELSIF TG_OP = 'UPDATE' THEN
+    old_data := to_jsonb(OLD);
+    new_data := to_jsonb(NEW);
+  ELSE
+    old_data := to_jsonb(OLD);
+    new_data := NULL;
+  END IF;
+
+  row_data := COALESCE(new_data, old_data, '{}'::jsonb);
+  record_uuid := public.audit_uuid_or_null(row_data ->> 'id');
+  company_uuid := COALESCE(
+    public.audit_uuid_or_null(row_data ->> 'company_id'),
+    CASE WHEN TG_TABLE_NAME = 'companies' THEN record_uuid ELSE NULL END
+  );
+
+  SELECT COALESCE(array_agg(keys.key ORDER BY keys.key), ARRAY[]::text[])
+    INTO changed
+  FROM (
+    SELECT jsonb_object_keys(COALESCE(old_data, '{}'::jsonb)) AS key
+    UNION
+    SELECT jsonb_object_keys(COALESCE(new_data, '{}'::jsonb)) AS key
+  ) keys
+  WHERE keys.key <> 'updated_at'
+    AND COALESCE(old_data, '{}'::jsonb) -> keys.key IS DISTINCT FROM COALESCE(new_data, '{}'::jsonb) -> keys.key;
+
+  IF TG_OP = 'UPDATE' AND COALESCE(array_length(changed, 1), 0) = 0 THEN
+    RETURN NEW;
+  END IF;
+
+  action_name := TG_OP;
+  old_status := old_data ->> 'status';
+  new_status := new_data ->> 'status';
+
+  IF TG_OP = 'UPDATE'
+    AND old_data ->> 'deleted_at' IS NULL
+    AND new_data ->> 'deleted_at' IS NOT NULL THEN
+    action_name := 'SOFT_DELETE';
+  ELSIF TG_OP = 'UPDATE' AND old_status IS DISTINCT FROM new_status THEN
+    action_name := CASE new_status
+      WHEN 'voided' THEN 'VOID'
+      WHEN 'reconciled' THEN 'RECONCILE'
+      WHEN 'approved' THEN 'APPROVE'
+      WHEN 'confirmed' THEN 'CONFIRM'
+      WHEN 'rejected' THEN 'REJECT'
+      WHEN 'cancelled' THEN 'CANCEL'
+      ELSE 'STATUS_CHANGE'
+    END;
+  END IF;
+
+  actor_uuid := COALESCE(
+    public.audit_uuid_or_null(public.audit_request_header('x-audit-actor-profile-id')),
+    CASE WHEN action_name = 'SOFT_DELETE' THEN public.audit_uuid_or_null(new_data ->> 'deleted_by') ELSE NULL END,
+    CASE WHEN TG_OP = 'UPDATE' THEN public.audit_uuid_or_null(new_data ->> 'updated_by') ELSE NULL END,
+    CASE WHEN TG_OP = 'INSERT' THEN public.audit_uuid_or_null(new_data ->> 'created_by') ELSE NULL END,
+    public.audit_uuid_or_null(row_data ->> 'uploaded_by'),
+    public.audit_uuid_or_null(row_data ->> 'imported_by'),
+    public.audit_uuid_or_null(row_data ->> 'approved_by')
+  );
+
+  source_text := COALESCE(
+    new_data ->> 'source_module',
+    old_data ->> 'source_module',
+    public.audit_request_header('x-audit-source-module'),
+    TG_TABLE_NAME
+  );
+
+  reason_text := COALESCE(
+    public.audit_request_header('x-audit-reason'),
+    new_data ->> 'deleted_reason',
+    new_data ->> 'void_reason'
+  );
+
+  INSERT INTO public.audit_events (
+    company_id,
+    actor_profile_id,
+    actor_type,
+    actor_label,
+    source_module,
+    request_id,
+    idempotency_key,
+    ip_address,
+    user_agent,
+    http_method,
+    http_path,
+    action,
+    table_schema,
+    table_name,
+    record_id,
+    record_pk,
+    old_data,
+    new_data,
+    changed_fields,
+    reason,
+    metadata
+  ) VALUES (
+    company_uuid,
+    actor_uuid,
+    COALESCE(public.audit_request_header('x-audit-actor-type'), CASE WHEN actor_uuid IS NULL THEN 'system' ELSE 'user' END),
+    public.audit_request_header('x-audit-actor-label'),
+    source_text,
+    public.audit_request_header('x-audit-request-id'),
+    public.audit_request_header('x-audit-idempotency-key'),
+    public.audit_inet_or_null(public.audit_request_header('x-audit-ip-address')),
+    public.audit_request_header('x-audit-user-agent'),
+    public.audit_request_header('x-audit-http-method'),
+    public.audit_request_header('x-audit-http-path'),
+    action_name,
+    TG_TABLE_SCHEMA,
+    TG_TABLE_NAME,
+    record_uuid,
+    CASE WHEN record_uuid IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('id', record_uuid) END,
+    old_data,
+    new_data,
+    changed,
+    reason_text,
+    jsonb_strip_nulls(jsonb_build_object(
+      'trigger_operation', TG_OP,
+      'trigger_name', TG_NAME
+    ))
+  );
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.prevent_audit_event_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_events is append-only';
+  RETURN OLD;
+END;
+$$;
+
 -- Add the deferred insurance movement reference now that account_movements exists.
 ALTER TABLE public.vehicle_insurance_policies
   ADD CONSTRAINT vehicle_insurance_policies_account_movement_id_fkey
@@ -964,9 +1214,75 @@ CREATE TRIGGER set_whatsapp_messages_updated_at BEFORE UPDATE ON public.whatsapp
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_whatsapp_capture_drafts_updated_at BEFORE UPDATE ON public.whatsapp_capture_drafts
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER prevent_audit_events_mutation BEFORE UPDATE OR DELETE ON public.audit_events
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_audit_event_mutation();
+
+-- Append-only audit triggers. These capture row snapshots even for writes that
+-- bypass the application layer, as long as they touch the public tables below.
+DO $$
+DECLARE
+  tbl text;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'companies',
+    'profiles',
+    'business_partners',
+    'projects',
+    'project_aliases',
+    'employees',
+    'project_workers',
+    'vehicles',
+    'vehicle_assignments',
+    'vehicle_insurance_policies',
+    'expense_categories',
+    'cost_centers',
+    'items',
+    'financial_accounts',
+    'source_imports',
+    'import_rows',
+    'account_transfers',
+    'account_movements',
+    'bank_checks',
+    'transaction_allocations',
+    'supplier_credit_accounts',
+    'financial_documents',
+    'financial_document_lines',
+    'document_payment_applications',
+    'document_applications',
+    'payroll_runs',
+    'payroll_lines',
+    'employee_loans',
+    'employee_loan_payments',
+    'partner_loans',
+    'partner_loan_payments',
+    'fuel_cards',
+    'fuel_stations',
+    'fuel_transactions',
+    'recurring_obligations',
+    'whatsapp_contacts',
+    'whatsapp_messages',
+    'whatsapp_capture_drafts',
+    'attachments'
+  ]
+  LOOP
+    EXECUTE format(
+      'CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.audit_capture_row_change()',
+      'audit_' || tbl || '_changes',
+      tbl
+    );
+  END LOOP;
+END$$;
 
 -- Foreign key and report indexes. These are intentionally explicit because the
 -- MVP dashboards and imports will filter by company + date/source/project often.
+CREATE INDEX idx_audit_events_company_time ON public.audit_events(company_id, occurred_at DESC);
+CREATE INDEX idx_audit_events_record ON public.audit_events(table_name, record_id, occurred_at DESC);
+CREATE INDEX idx_audit_events_actor ON public.audit_events(company_id, actor_profile_id, occurred_at DESC)
+  WHERE actor_profile_id IS NOT NULL;
+CREATE INDEX idx_audit_events_request ON public.audit_events(request_id)
+  WHERE request_id IS NOT NULL;
+CREATE INDEX idx_audit_events_idempotency ON public.audit_events(idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 CREATE INDEX idx_profiles_company ON public.profiles(company_id);
 CREATE INDEX idx_business_partners_company_type_name ON public.business_partners(company_id, partner_type, name);
 CREATE INDEX idx_projects_company_status ON public.projects(company_id, status) WHERE deleted_at IS NULL;
@@ -1415,6 +1731,45 @@ LEFT JOIN public.whatsapp_contacts c ON c.id = d.contact_id
 LEFT JOIN public.whatsapp_messages source_msg ON source_msg.id = d.source_message_id
 LEFT JOIN public.whatsapp_messages confirm_msg ON confirm_msg.id = d.confirmation_message_id;
 
+CREATE VIEW public.vw_audit_timeline WITH (security_invoker = true) AS
+SELECT
+  ae.company_id,
+  ae.id AS audit_event_id,
+  ae.occurred_at,
+  ae.action,
+  ae.table_name,
+  ae.record_id,
+  ae.changed_fields,
+  ae.actor_profile_id,
+  COALESCE(p.full_name, ae.actor_label) AS actor_name,
+  ae.actor_type,
+  ae.source_module,
+  ae.request_id,
+  ae.http_method,
+  ae.http_path,
+  ae.reason
+FROM public.audit_events ae
+LEFT JOIN public.profiles p ON p.id = ae.actor_profile_id;
+
+CREATE VIEW public.vw_record_audit_history WITH (security_invoker = true) AS
+SELECT
+  ae.company_id,
+  ae.table_name,
+  ae.record_id,
+  ae.occurred_at,
+  ae.action,
+  ae.changed_fields,
+  ae.old_data,
+  ae.new_data,
+  ae.actor_profile_id,
+  COALESCE(p.full_name, ae.actor_label) AS actor_name,
+  ae.actor_type,
+  ae.source_module,
+  ae.request_id,
+  ae.reason
+FROM public.audit_events ae
+LEFT JOIN public.profiles p ON p.id = ae.actor_profile_id;
+
 -- Basic tenant RLS helper and policies. The backend service role can still bypass
 -- RLS, but browser/client access can rely on a JWT claim named company_id.
 CREATE OR REPLACE FUNCTION public.current_company_id()
@@ -1445,6 +1800,10 @@ $$;
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 CREATE POLICY companies_tenant_select ON public.companies
   FOR SELECT USING (id = public.current_company_id());
+
+ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY audit_events_tenant_select ON public.audit_events
+  FOR SELECT USING (company_id = public.current_company_id());
 
 DO $$
 DECLARE

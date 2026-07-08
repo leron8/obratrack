@@ -2,6 +2,10 @@ import express from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDashboardSummary } from "../services/supabase";
 
+function getRequestDb(req: express.Request, fallback: SupabaseClient): SupabaseClient {
+  return req.db ?? fallback;
+}
+
 export function createDashboardRouter({ db }: { db: SupabaseClient }) {
   const router = express.Router();
 
@@ -12,7 +16,7 @@ export function createDashboardRouter({ db }: { db: SupabaseClient }) {
     }
 
     try {
-      const summary = await getDashboardSummary({ db, companyId, limit: 8 });
+      const summary = await getDashboardSummary({ db: getRequestDb(req, db), companyId, limit: 8 });
       return res.json(summary);
     } catch (error) {
       console.error("Dashboard summary error:", error, { companyId });

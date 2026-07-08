@@ -7,6 +7,7 @@ import cors from "cors";
 import { loadEnv } from "./env";
 import { createOpenAIClient } from "./services/openai";
 import { createSupabaseClient } from "./services/supabase";
+import { auditContextMiddleware } from "./routes/audit";
 import { tenantMiddleware } from "./routes/tenant";
 import { createWhatsappRouter } from "./routes/whatsapp";
 import { createTransactionsRouter } from "./routes/transactions";
@@ -31,6 +32,7 @@ async function main() {
   // Twilio webhook comes as form-encoded.
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json());
+  app.use(auditContextMiddleware(env));
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
 
@@ -48,4 +50,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-
