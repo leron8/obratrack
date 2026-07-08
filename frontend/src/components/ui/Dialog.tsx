@@ -52,7 +52,7 @@ export function Dialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
       <button
-        aria-label="Close dialog"
+        aria-label="Cerrar dialogo"
         className="absolute inset-0 cursor-default bg-slate-950/80 backdrop-blur-sm"
         onClick={onClose}
       />
@@ -71,7 +71,7 @@ export function Dialog({
             {description ? <p className="mt-2 text-sm text-slate-400">{description}</p> : null}
           </div>
           <button
-            aria-label="Close dialog"
+            aria-label="Cerrar dialogo"
             className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-slate-400 transition hover:border-slate-700 hover:text-white"
             onClick={onClose}
           >

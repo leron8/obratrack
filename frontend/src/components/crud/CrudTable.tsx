@@ -63,7 +63,7 @@ export function CrudTable<T extends { id: string }>({
               {loading ? (
                 <tr>
                   <td colSpan={columns.length} className="px-4 py-12 text-center text-sm text-slate-500">
-                    Loading records...
+                    Cargando registros...
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
@@ -100,8 +100,8 @@ export function CrudTable<T extends { id: string }>({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-400">
-          Showing <span className="font-semibold text-white">{from}</span>-
-          <span className="font-semibold text-white">{to}</span> of{" "}
+          Mostrando <span className="font-semibold text-white">{from}</span>-
+          <span className="font-semibold text-white">{to}</span> de{" "}
           <span className="font-semibold text-white">{totalItems}</span>
         </p>
 
@@ -113,10 +113,10 @@ export function CrudTable<T extends { id: string }>({
             onClick={() => onPageChange(currentPage - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
-            Previous
+            Anterior
           </Button>
           <div className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-2 text-sm text-slate-300">
-            Page {currentPage} / {totalPages}
+            Pagina {currentPage} / {totalPages}
           </div>
           <Button
             variant="secondary"
@@ -124,7 +124,7 @@ export function CrudTable<T extends { id: string }>({
             disabled={currentPage >= totalPages}
             onClick={() => onPageChange(currentPage + 1)}
           >
-            Next
+            Siguiente
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
