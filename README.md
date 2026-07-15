@@ -1,153 +1,186 @@
-# Obratrack - Expense Management Monorepo
+# ObraTrack Monorepo
 
-A monorepo containing the Obratrack expense management system with shared types, backend API, and frontend application.
+Financial assistant for capturing income and expenses through WhatsApp while managing operations from a secure web dashboard.
 
-## Structure
+## Stack
 
-```
-.
-├── shared/          # Shared TypeScript types and utilities
-├── backend/         # Express.js backend API
-├── frontend/        # Next.js frontend application
-├── package.json     # Root workspace configuration
-└── .github/         # CI/CD workflows
+- `frontend/`: Next.js 14 + React + Tailwind
+- `backend/`: Express + TypeScript
+- `shared/`: shared TypeScript types
+- Database/Auth: Supabase PostgreSQL + Supabase Auth
+
+## Auth And Authorization
+
+This repo now uses Supabase Auth with:
+
+- passwordless email magic links
+- persisted browser sessions
+- automatic session refresh via Next.js middleware
+- protected application routes
+- onboarding after first login
+- multi-company membership support
+- company role-based authorization
+- Supabase RLS for company isolation
+
+## Folder Highlights
+
+```text
+backend/
+  db/
+    09_auth_memberships_and_rls.sql
+  src/
+    middleware/authentication.ts
+    modules/auth/
+      dto/
+      repositories/
+      services/
+    routes/auth.ts
+
+frontend/
+  src/
+    app/
+      auth/callback/
+      login/
+      onboarding/
+      unauthorized/
+    components/auth/
+    hooks/
+    lib/supabase/
+    providers/AuthProvider.tsx
 ```
 
 ## Prerequisites
 
 - Node.js 20+
 - npm 9+
+- a Supabase project with Auth enabled
 
-## Installation
+## 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-This will install dependencies for all workspaces (shared, backend, frontend).
+## 2. Configure Supabase Auth
 
-## Development
+In the Supabase dashboard:
 
-### Run Backend
+1. Enable the Email provider.
+2. Keep password sign-in disabled for this app if you want a magic-link-only flow.
+3. Set the site URL to your frontend origin.
+4. Add redirect URLs for:
+   - `http://localhost:3000/auth/callback`
+   - your production frontend callback URL
+
+## 3. Run Database SQL
+
+Run the SQL files in `backend/db/` in numeric order.
+
+Important:
+
+1. Run `00_rebuild_mvp_erp_schema.sql`
+2. Run `08_demo_seed.sql` only if you still want the legacy demo seed
+3. Run `09_auth_memberships_and_rls.sql`
+
+The new migration:
+
+- renames the legacy `profiles` table to `users`
+- creates `company_members`
+- adds onboarding helpers
+- adds `owner_user_id` and `active_company_id`
+- applies membership-based RLS policies
+
+## 4. Environment Variables
+
+### Backend
+
+Copy `backend/.env.example` to `backend/.env`.
+
+Required:
+
+- `FRONTEND_URL`
+- `CORS_ORIGINS`
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY` or `SUPABASE_ANON_KEY`
+- `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+
+Optional:
+
+- `DEFAULT_COMPANY_ID`
+  Use only for unauthenticated WhatsApp/demo flows.
+
+### Frontend
+
+Copy `frontend/.env.example` to `frontend/.env.local`.
+
+Required:
+
+- `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SITE_URL`
+
+## 5. Run Locally
+
 ```bash
 npm run dev:backend
-```
-
-### Run Frontend
-```bash
 npm run dev:frontend
 ```
 
-## Building
+Frontend:
+
+- `http://localhost:3000`
+
+Backend:
+
+- `http://localhost:3001`
+
+## Auth Flow
+
+1. Open `/login`
+2. Enter an email address
+3. Click `Continue with Magic Link`
+4. Open the email and follow the Supabase link
+5. On first login, complete onboarding with:
+   - full name
+   - WhatsApp phone number
+   - country
+   - time zone
+6. The backend creates the initial company named `Personal`
+7. The user becomes the `OWNER`
+
+## Roles
+
+- `OWNER`: full access
+- `ADMIN`: almost full access, except company deletion
+- `ACCOUNTANT`: financial management and reports
+- `INCOME_REGISTRAR`: can create income transactions
+- `EXPENSE_REGISTRAR`: can create expense transactions
+- `VIEWER`: read-only access
+
+## Backend Session Endpoints
+
+- `GET /auth/session`
+- `POST /auth/onboarding`
+- `PUT /auth/active-company`
+
+All protected business routes now require a Supabase bearer token.
+
+## Notes
+
+- Business routes use a user-scoped Supabase client so RLS enforces company isolation.
+- The dashboard company selector persists through `users.active_company_id`.
+- The old `x-user-role` demo flow was removed from the frontend.
+
+## Verification
+
+This environment did not include `node` or `npm`, so dependency install and type/build verification could not be run here. After pulling these changes, run:
 
 ```bash
-# Build all packages
-npm run build:shared
+npm install
 npm run build:backend
 npm run build:frontend
-
-# Or build individually
-npm run build -w backend
-npm run build -w frontend
 ```
-
-## Workspaces
-
-- **@expenses/shared** - Shared TypeScript types and interfaces used by both backend and frontend
-- **expenses-backend** - Express.js REST API with Supabase integration
-- **expenses-frontend** - Next.js 14 application with TypeScript and Tailwind CSS
-
-## Deployment
-
-### Option 1: Native Integrations (Recommended)
-
-**Vercel (Frontend):**
-1. Go to [vercel.com](https://vercel.com)
-2. Import your GitHub repository
-3. Set **Root Directory** to `frontend`
-4. Vercel auto-detects Next.js and configures build settings
-5. Add environment variables in Vercel dashboard
-6. Every push to `main` triggers automatic deployment
-
-**Render (Backend):**
-
-**Option A: Using render.yaml (Recommended)**
-1. Go to [render.com](https://render.com)
-2. Create new **Web Service**
-3. Connect your GitHub repository
-4. Render will auto-detect the `render.yaml` file in the root
-5. Add environment variables in Render dashboard:
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-   - `OPENAI_API_KEY`
-   - `WHATSAPP_API_TOKEN`
-6. Every push to `main` triggers automatic deployment
-
-**Option B: Manual Configuration**
-1. Go to [render.com](https://render.com)
-2. Create new **Web Service**
-3. Connect your GitHub repository
-4. Set **Root Directory** to `.` (root of repo)
-5. Set **Build Command**: `npm install && npm run build:backend`
-6. Set **Start Command**: `npm run start -w backend`
-7. Add environment variables in Render dashboard
-8. Every push to `main` triggers automatic deployment
-
-### Option 2: GitHub Actions with API (Advanced)
-
-If you want GitHub Actions to trigger deployments:
-
-**Required Secrets:**
-- `VERCEL_TOKEN` - Get from [vercel.com/account/tokens](https://vercel.com/account/tokens)
-- `RENDER_API_KEY` - Get from Render dashboard → Settings → API Keys
-
-**Setup:**
-1. Go to your GitHub repo → Settings → Secrets and variables → Actions
-2. Add repository secrets:
-   - `VERCEL_TOKEN` - Your Vercel API token
-   - `RENDER_API_KEY` - Your Render API key
-3. Uncomment the deployment jobs in `.github/workflows/ci-cd.yml`
-
-## CI/CD
-
-GitHub Actions workflow runs on every push to main:
-1. ✅ Installs dependencies for all workspaces
-2. ✅ Builds shared package
-3. ✅ Builds backend
-4. ✅ Builds frontend
-5. ✅ Validates that everything compiles
-
-## Git Workflow
-
-1. Create feature branches from `main`
-2. Make changes in the appropriate workspace
-3. Push and create a pull request
-4. After review, merge to `main` to trigger deployment
-
-## Environment Variables
-
-### Backend (.env in backend/ directory)
-```
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-OPENAI_API_KEY=your_openai_api_key
-WHATSAPP_API_TOKEN=your_whatsapp_token
-```
-
-### Frontend (.env.local in frontend/ directory)
-```
-NEXT_PUBLIC_API_URL=your_backend_url
-```
-
-## Troubleshooting
-
-**"npm not found" error:**
-- Install Node.js 20+ from [nodejs.org](https://nodejs.org/)
-
-**Build errors:**
-- Ensure all dependencies are installed: `npm install`
-- Check that workspace paths are correct in package.json
-
-**Deployment not triggering:**
-- Verify GitHub integration is enabled in Vercel/Render
-- Check that root directory is set correctly

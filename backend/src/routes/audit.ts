@@ -58,7 +58,7 @@ function getActorType(req: Request, actorProfileId: string | null, isWhatsAppWeb
   return isWhatsAppWebhook ? "whatsapp_contact" : "api";
 }
 
-function buildAuditHeaders(context: AuditContext): Record<string, string> {
+export function buildAuditHeaders(context: AuditContext): Record<string, string> {
   const headers: Record<string, string | null> = {
     "x-audit-request-id": context.requestId,
     "x-audit-actor-profile-id": context.actorProfileId,
@@ -107,7 +107,7 @@ export function auditContextMiddleware(env: Env) {
     req.auditContext = context;
     req.db = createSupabaseClient({
       url: env.SUPABASE_URL,
-      serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
+      key: env.SUPABASE_SERVER_KEY,
       globalHeaders: buildAuditHeaders(context)
     });
     res.setHeader("x-request-id", context.requestId);

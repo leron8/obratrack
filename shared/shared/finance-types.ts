@@ -667,3 +667,49 @@ export type ReportFilters = {
   account_id?: string;
   category_id?: string;
 };
+
+// ── Auth + multi-company access ────────────────────────────────────────
+
+export type CompanyRole =
+  | "OWNER"
+  | "ADMIN"
+  | "ACCOUNTANT"
+  | "INCOME_REGISTRAR"
+  | "EXPENSE_REGISTRAR"
+  | "VIEWER";
+
+export type AuthUserProfile = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone_number: string | null;
+  country: string | null;
+  timezone: string | null;
+  active_company_id: string | null;
+  onboarding_completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AuthCompanySummary = {
+  id: string;
+  name: string;
+  owner_user_id: string | null;
+  role: CompanyRole;
+  created_at: string;
+  timezone: string;
+};
+
+export type AuthenticatedAuthUser = {
+  id: string;
+  email: string;
+};
+
+export type AuthSessionResponse = {
+  auth_user: AuthenticatedAuthUser;
+  user: AuthUserProfile | null;
+  onboarding_complete: boolean;
+  companies: AuthCompanySummary[];
+  active_company: AuthCompanySummary | null;
+  active_role: CompanyRole | null;
+};

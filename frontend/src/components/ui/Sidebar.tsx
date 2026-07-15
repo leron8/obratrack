@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Folder, DollarSign, Users, ClipboardList, Truck, Building2, FileText, Settings2, CalendarCheck, CreditCard } from "lucide-react";
+import { useAuthorization } from "../../hooks/use-authorization";
 import { cn } from "../../lib/utils";
 
 const navItems = [
@@ -21,6 +22,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { canAccessPath } = useAuthorization();
+  const visibleItems = navItems.filter((item) => canAccessPath(item.href));
 
   return (
     <aside className="hidden h-full w-full max-w-[280px] shrink-0 border-r border-slate-800 bg-slate-950 px-5 py-6 lg:block">
@@ -30,7 +33,7 @@ export function Sidebar() {
       </div>
 
       <nav className="space-y-1">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (

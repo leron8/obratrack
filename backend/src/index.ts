@@ -5,10 +5,12 @@ import express from "express";
 import cors from "cors";
 
 import { loadEnv } from "./env";
+import { createAuthenticationMiddleware, createCompanyContextMiddleware } from "./middleware/authentication";
+import { AuthService } from "./modules/auth/services/auth.service";
 import { createOpenAIClient } from "./services/openai";
 import { createSupabaseClient } from "./services/supabase";
 import { auditContextMiddleware } from "./routes/audit";
-import { tenantMiddleware } from "./routes/tenant";
+import { createAuthRouter } from "./routes/auth";
 import { createWhatsappRouter } from "./routes/whatsapp";
 import { createTransactionsRouter } from "./routes/transactions";
 import { createDashboardRouter } from "./routes/dashboard";
@@ -23,13 +25,29 @@ async function main() {
   const openaiClient = createOpenAIClient(env.OPENAI_API_KEY);
   const db = createSupabaseClient({
     url: env.SUPABASE_URL,
-    serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY
+    key: env.SUPABASE_SERVER_KEY
   });
+  const authService = new AuthService(env, db);
 
   const app = express();
   app.use(
     cors({
-      origin: "*"
+      origin(origin, callback) {
+        if (!origin || env.CORS_ORIGINS.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error(`Origin ${origin} is not allowed by CORS.`));
+      },
+      credentials: true,
+      allowedHeaders: [
+        "authorization",
+        "content-type",
+        "idempotency-key",
+        "x-company-id",
+        "x-request-id"
+      ]
     })
   );
 
@@ -41,7 +59,9 @@ async function main() {
   app.get("/health", (_req, res) => res.json({ ok: true }));
 
   app.use(createWhatsappRouter({ env, openaiClient, db }));
-  app.use(tenantMiddleware(env));
+  app.use(createAuthenticationMiddleware(authService));
+  app.use(createAuthRouter({ authService }));
+  app.use(createCompanyContextMiddleware(authService));
   app.use(createTransactionsRouter({ env, openaiClient, db }));
   app.use(createProjectsRouter({ env, db }));
   app.use(createDirectoryRouter({ env, db }));

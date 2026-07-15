@@ -50,6 +50,13 @@ export function createWhatsappRouter({
     const requestDb = getRequestDb(req, db);
 
     try {
+      if (!companyId) {
+        res.type("text/xml").status(200).send(
+          twimlMsg("La integración de WhatsApp no tiene una empresa configurada todavía.")
+        );
+        return;
+      }
+
       if (!fromWhatsapp) {
         res.type("text/xml").status(200).send(
           "<Response><Message>No pude identificar el remitente.</Message></Response>"

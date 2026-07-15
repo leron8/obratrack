@@ -1,6 +1,8 @@
 import express from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CompanyRole } from "@expenses/shared";
 import { z } from "zod";
+import { isFinancialManager } from "../modules/auth/permissions";
 
 export class RequestError extends Error {
   constructor(
@@ -71,11 +73,12 @@ export function sendError(res: express.Response, error: unknown, fallback: strin
   return res.status(status).json({ error: message });
 }
 
+export function getCurrentRole(req: express.Request): CompanyRole | null {
+  return req.user?.role ?? null;
+}
+
 export function getRequestedRole(req: express.Request): "admin" | "viewer" {
-  const roleHeader = typeof req.header("x-user-role") === "string" ? req.header("x-user-role") : undefined;
-  const roleQuery = typeof req.query.role === "string" ? req.query.role : undefined;
-  const rawRole = roleHeader ?? roleQuery ?? "admin";
-  return rawRole === "viewer" ? "viewer" : "admin";
+  return isFinancialManager(getCurrentRole(req)) ? "admin" : "viewer";
 }
 
 export function getRequestDb(req: express.Request, fallback: SupabaseClient): SupabaseClient {

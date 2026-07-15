@@ -18,11 +18,12 @@ import AppShell from "../../components/AppShell";
 import { Card } from "../../components/ui/Card";
 import { KpiCard } from "../../components/ui/KpiCard";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { useAuth } from "../../hooks/use-auth";
+import { fetchJson } from "../../lib/finance-demo";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, ArcElement, Tooltip, Legend, Filler);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-const DEFAULT_COMPANY_ID = process.env.NEXT_PUBLIC_COMPANY_ID || "";
 
 function formatMoney(amount: number, currency = "MXN") {
   try {
@@ -57,7 +58,7 @@ function getDefaultDates() {
 }
 
 export default function ReportsPage() {
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
+  const { activeCompany } = useAuth();
   const [activeTab, setActiveTab] = useState<ReportTab>("profitability");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState(getDefaultDates().end_date);
   const [projectFilter, setProjectFilter] = useState("");
   const [accountFilter, setAccountFilter] = useState("");
+  const companyId = activeCompany?.id ?? "";
 
   const loadData = useCallback(async () => {
     if (inFlight.current) return;
@@ -78,7 +80,7 @@ export default function ReportsPage() {
 
     try {
       if (!companyId) {
-        setError("Configura el ID de empresa.");
+        setError("Select an active company to load reports.");
         setData(null);
         return;
       }
@@ -99,13 +101,7 @@ export default function ReportsPage() {
         case "fuel": endpoint = "fuel-consumption"; break;
       }
 
-      const res = await fetch(`${API_BASE_URL}/reports/${endpoint}?${params.toString()}`);
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json?.error || res.statusText);
-      }
-
+      const json = await fetchJson(`${API_BASE_URL}/reports/${endpoint}?${params.toString()}`);
       setData(json);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -236,16 +232,12 @@ export default function ReportsPage() {
       description="Analiza la rentabilidad por obra, gastos, ingresos, flujo de efectivo, créditos y consumo de combustible."
     >
       <div className="space-y-6">
-        {/* Company ID + Filters */}
         <div className="grid gap-4 rounded-[32px] border border-slate-800 bg-slate-950 p-5 shadow-soft md:grid-cols-[1fr_1fr_1fr_auto]">
           <div className="space-y-1">
-            <p className="text-xs text-cyan-300">ID Empresa</p>
-            <input
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              placeholder="UUID"
-              className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-100 outline-none transition focus:border-cyan-400"
-            />
+            <p className="text-xs text-cyan-300">Empresa activa</p>
+            <div className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-100">
+              {activeCompany?.name ?? "Sin empresa seleccionada"}
+            </div>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-slate-400">Desde</p>
