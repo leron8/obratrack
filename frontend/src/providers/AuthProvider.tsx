@@ -187,15 +187,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(state.session && state.authUser),
       onboardingComplete: Boolean(state.user?.onboarding_completed_at),
       async sendMagicLink(email: string, nextPath?: string | null) {
-        const redirectUrl = new URL("/auth/callback", window.location.origin);
+        // Store the redirect path in sessionStorage before navigating away
+        // so the callback page can read it after the magic link redirect.
         if (nextPath && nextPath.startsWith("/")) {
-          redirectUrl.searchParams.set("next", nextPath);
+          sessionStorage.setItem("auth_redirect_next", nextPath);
         }
 
         const { error } = await supabase.auth.signInWithOtp({
           email: email.trim().toLowerCase(),
           options: {
-            emailRedirectTo: redirectUrl.toString(),
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
             shouldCreateUser: true
           }
         });

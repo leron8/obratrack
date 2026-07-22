@@ -17,9 +17,27 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.replace(onboardingComplete ? getDefaultRouteForRole(activeRole) : "/onboarding");
+      // Check if there's a saved redirect path from sending the magic link.
+      const savedRedirect = sessionStorage.getItem("auth_redirect_next");
+      if (savedRedirect) {
+        sessionStorage.removeItem("auth_redirect_next");
+        router.replace(savedRedirect);
+      } else {
+        router.replace(onboardingComplete ? getDefaultRouteForRole(activeRole) : "/onboarding");
+      }
     }
   }, [activeRole, isAuthenticated, loading, onboardingComplete, router]);
+
+  // Surface callback errors from query params (e.g., expired magic link)
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
+    if (errorParam === "access_denied" && errorDescription) {
+      setError(decodeURIComponent(errorDescription));
+    } else if (errorParam) {
+      setError(`Authentication failed: ${errorParam}`);
+    }
+  }, [searchParams]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

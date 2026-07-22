@@ -54,8 +54,10 @@ export function loadEnv(): Env {
     throw new Error(`Invalid environment variables:\n${formatted}`);
   }
 
-  const supabasePublicKey = parsed.data.SUPABASE_PUBLISHABLE_KEY ?? parsed.data.SUPABASE_ANON_KEY;
-  const supabaseServerKey = parsed.data.SUPABASE_SECRET_KEY ?? parsed.data.SUPABASE_SERVICE_ROLE_KEY;
+  // Prefer the JWT-format keys (ANON/SERVICE_ROLE) over the opaque `sb_` keys, which
+  // do not reliably carry user identity context required by RLS policies using auth.uid().
+  const supabasePublicKey = parsed.data.SUPABASE_ANON_KEY ?? parsed.data.SUPABASE_PUBLISHABLE_KEY;
+  const supabaseServerKey = parsed.data.SUPABASE_SERVICE_ROLE_KEY ?? parsed.data.SUPABASE_SECRET_KEY;
 
   if (!supabasePublicKey) {
     throw new Error("Missing Supabase public key. Set SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY.");

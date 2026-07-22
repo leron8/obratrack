@@ -6,19 +6,19 @@ function sanitizeRedirectPath(candidate: string | null): string {
   if (!candidate || !candidate.startsWith("/")) {
     return "/";
   }
-
   return candidate;
 }
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const nextPath = sanitizeRedirectPath(requestUrl.searchParams.get("next"));
-  let response = NextResponse.redirect(new URL(nextPath, requestUrl.origin));
 
   if (!code) {
     return NextResponse.redirect(new URL("/login?error=missing_code", requestUrl.origin));
   }
+
+  // Default redirect path (the LoginPage will redirect further if needed).
+  const redirectResponse = NextResponse.redirect(new URL("/login", requestUrl.origin));
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
@@ -28,12 +28,7 @@ export async function GET(request: NextRequest) {
       setAll(cookiesToSet) {
         for (const cookie of cookiesToSet) {
           request.cookies.set(cookie.name, cookie.value);
-        }
-
-        response = NextResponse.redirect(new URL(nextPath, requestUrl.origin));
-
-        for (const cookie of cookiesToSet) {
-          response.cookies.set(cookie.name, cookie.value, cookie.options);
+          redirectResponse.cookies.set(cookie.name, cookie.value, cookie.options);
         }
       }
     }
@@ -44,5 +39,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=callback_failed", requestUrl.origin));
   }
 
-  return response;
+  return redirectResponse;
 }

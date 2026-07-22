@@ -145,6 +145,8 @@ export class AuthService {
     requestedCompanyId?: string;
     activeCompanyId: string | null;
   }): Promise<CompanyContext> {
+    // Use the service_db client (service_role key) which bypasses RLS.
+    // The user's identity is already verified from the JWT claims above.
     const companies = await this.memberships.listByUserId(userId);
     if (companies.length === 0) {
       return {
