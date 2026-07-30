@@ -74,21 +74,22 @@ In the Supabase dashboard:
 
 ## 3. Run Database SQL
 
-Run the SQL files in `backend/db/` in numeric order.
+Run the consolidated schema file on an empty database:
 
-Important:
+```bash
+# In Supabase SQL Editor, or via psql:
+# backend/db/schema.sql
+```
 
-1. Run `00_rebuild_mvp_erp_schema.sql`
-2. Run `08_demo_seed.sql` only if you still want the legacy demo seed
-3. Run `09_auth_memberships_and_rls.sql`
+This single file includes:
 
-The new migration:
+- Complete database schema with all tables, views, and indexes
+- Audit logging triggers and functions
+- Auth helper functions (`complete_user_onboarding`, `generate_company_slug`)
+- Row Level Security (RLS) policies for multi-tenant isolation
+- Supabase role grants
 
-- renames the legacy `profiles` table to `users`
-- creates `company_members`
-- adds onboarding helpers
-- adds `owner_user_id` and `active_company_id`
-- applies membership-based RLS policies
+**Note:** Seed data has been removed. The schema is designed to be populated through the application onboarding flow.
 
 ## 4. Environment Variables
 

@@ -31,7 +31,9 @@ export function createAuthRouter({ authService }: { authService: AuthService }) 
       }
 
       const payload = CompleteOnboardingDtoSchema.parse(req.body);
+      console.log("Received onboarding payload:", payload);
       const session = await authService.completeOnboarding(req.authUser, payload);
+      console.log("Onboarding completed. Session snapshot:", session);
       return res.status(201).json(session);
     } catch (error) {
       return sendError(res, error, "Unable to complete onboarding.");
