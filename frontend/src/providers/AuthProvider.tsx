@@ -13,6 +13,7 @@ import {
   type ReactNode
 } from "react";
 import { getSupabaseBrowserClient } from "../lib/supabase/client";
+import { AuthLoadingScreen } from "../components/auth/AuthLoadingScreen";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
@@ -111,11 +112,19 @@ async function requestAuthJson(
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [supabase] = useState(() => getSupabaseBrowserClient());
+  // The Supabase browser client must only be created in the browser. Creating it
+  // during Next.js static generation (prerendering) throws because it accesses
+  // browser-only APIs (window/localStorage). Defer creation to a client-only effect.
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [state, setState] = useState<AuthState>(initialState);
   const requestCounter = useRef(0);
 
   useEffect(() => {
+    setSupabase(getSupabaseBrowserClient());
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
     let mounted = true;
 
     const syncStateFromSession = async (session: Session | null) => {
@@ -174,93 +183,100 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      supabase,
-      loading: state.loading,
-      session: state.session,
-      authUser: state.authUser,
-      user: state.user,
-      companies: state.companies,
-      activeCompany: state.activeCompany,
-      activeRole: state.activeRole,
-      isAuthenticated: Boolean(state.session && state.authUser),
-      onboardingComplete: Boolean(state.user?.onboarding_completed_at),
-      async sendMagicLink(email: string, nextPath?: string | null) {
-        // Store the redirect path in sessionStorage before navigating away
-        // so the callback page can read it after the magic link redirect.
-        if (nextPath && nextPath.startsWith("/")) {
-          sessionStorage.setItem("auth_redirect_next", nextPath);
-        }
+  const value = useMemo<AuthContextValue | null>(
+    () =>
+      supabase
+        ? {
+            supabase,
+            loading: state.loading,
+            session: state.session,
+            authUser: state.authUser,
+            user: state.user,
+            companies: state.companies,
+            activeCompany: state.activeCompany,
+            activeRole: state.activeRole,
+            isAuthenticated: Boolean(state.session && state.authUser),
+            onboardingComplete: Boolean(state.user?.onboarding_completed_at),
+            async sendMagicLink(email: string, nextPath?: string | null) {
+              // Store the redirect path in sessionStorage before navigating away
+              // so the callback page can read it after the magic link redirect.
+              if (nextPath && nextPath.startsWith("/")) {
+                sessionStorage.setItem("auth_redirect_next", nextPath);
+              }
 
-        const { error } = await supabase.auth.signInWithOtp({
-          email: email.trim().toLowerCase(),
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-            shouldCreateUser: true
+              const { error } = await supabase.auth.signInWithOtp({
+                email: email.trim().toLowerCase(),
+                options: {
+                  emailRedirectTo: `${window.location.origin}/auth/callback`,
+                  shouldCreateUser: true
+                }
+              });
+
+              if (error) throw error;
+            },
+            async signOut() {
+              const { error } = await supabase.auth.signOut();
+              if (error) throw error;
+
+              startTransition(() => {
+                setState({
+                  ...initialState,
+                  loading: false
+                });
+              });
+            },
+            async refreshSession() {
+              const {
+                data: { session }
+              } = await supabase.auth.getSession();
+
+              if (!session) {
+                startTransition(() => {
+                  setState({
+                    ...initialState,
+                    loading: false
+                  });
+                });
+                return;
+              }
+
+              const snapshot = await requestAuthJson(supabase, "/auth/session");
+              startTransition(() => {
+                setState(applySnapshot(snapshot, session));
+              });
+            },
+            async completeOnboarding(payload: OnboardingPayload) {
+              const snapshot = await requestAuthJson(supabase, "/auth/onboarding", {
+                method: "POST",
+                body: JSON.stringify(payload)
+              });
+
+              startTransition(() => {
+                setState((current) => applySnapshot(snapshot, current.session));
+              });
+
+              return snapshot;
+            },
+            async setActiveCompany(companyId: string) {
+              const snapshot = await requestAuthJson(supabase, "/auth/active-company", {
+                method: "PUT",
+                body: JSON.stringify({ company_id: companyId })
+              });
+
+              startTransition(() => {
+                setState((current) => applySnapshot(snapshot, current.session));
+              });
+
+              return snapshot;
+            }
           }
-        });
-
-        if (error) throw error;
-      },
-      async signOut() {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-
-        startTransition(() => {
-          setState({
-            ...initialState,
-            loading: false
-          });
-        });
-      },
-      async refreshSession() {
-        const {
-          data: { session }
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          startTransition(() => {
-            setState({
-              ...initialState,
-              loading: false
-            });
-          });
-          return;
-        }
-
-        const snapshot = await requestAuthJson(supabase, "/auth/session");
-        startTransition(() => {
-          setState(applySnapshot(snapshot, session));
-        });
-      },
-      async completeOnboarding(payload: OnboardingPayload) {
-        const snapshot = await requestAuthJson(supabase, "/auth/onboarding", {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-
-        startTransition(() => {
-          setState((current) => applySnapshot(snapshot, current.session));
-        });
-
-        return snapshot;
-      },
-      async setActiveCompany(companyId: string) {
-        const snapshot = await requestAuthJson(supabase, "/auth/active-company", {
-          method: "PUT",
-          body: JSON.stringify({ company_id: companyId })
-        });
-
-        startTransition(() => {
-          setState((current) => applySnapshot(snapshot, current.session));
-        });
-
-        return snapshot;
-      }
-    }),
+        : null,
     [state.activeCompany, state.activeRole, state.authUser, state.companies, state.loading, state.session, state.user, supabase]
   );
+
+  if (!supabase || !value) {
+    return <AuthLoadingScreen />;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

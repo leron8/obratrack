@@ -1,26 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuthCompanySummary, CompanyRole } from "@expenses/shared";
 
+type CompanyMembershipCompany = {
+  id: string;
+  name: string;
+  owner_user_id: string | null;
+  created_at: string;
+  timezone: string;
+};
+
+// Newer @supabase/supabase-js versions type embedded to-one resources (via
+// `companies!inner(...)`) as an array, while older versions type them as a
+// single object. Accept both shapes and normalize below.
 type CompanyMembershipRow = {
   role: CompanyRole;
-  companies: {
-    id: string;
-    name: string;
-    owner_user_id: string | null;
-    created_at: string;
-    timezone: string;
-  } | null;
+  companies: CompanyMembershipCompany | CompanyMembershipCompany[] | null;
 };
 
 function normalizeMembership(row: CompanyMembershipRow): AuthCompanySummary | null {
-  if (!row.companies) return null;
+  const company = Array.isArray(row.companies) ? row.companies[0] : row.companies;
+  if (!company) return null;
 
   return {
-    id: row.companies.id,
-    name: row.companies.name,
-    owner_user_id: row.companies.owner_user_id,
-    created_at: row.companies.created_at,
-    timezone: row.companies.timezone,
+    id: company.id,
+    name: company.name,
+    owner_user_id: company.owner_user_id,
+    created_at: company.created_at,
+    timezone: company.timezone,
     role: row.role
   };
 }
