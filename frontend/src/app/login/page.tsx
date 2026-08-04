@@ -9,7 +9,7 @@ import { getDefaultRouteForRole } from "../../lib/authorization";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { loading, isAuthenticated, onboardingComplete, activeRole, sendMagicLink } = useAuth();
+  const { loading, isAuthenticated, activeRole, sendMagicLink } = useAuth();
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +23,10 @@ export default function LoginPage() {
         sessionStorage.removeItem("auth_redirect_next");
         router.replace(savedRedirect);
       } else {
-        router.replace(onboardingComplete ? getDefaultRouteForRole(activeRole) : "/onboarding");
+        router.replace(getDefaultRouteForRole(activeRole));
       }
     }
-  }, [activeRole, isAuthenticated, loading, onboardingComplete, router]);
+  }, [activeRole, isAuthenticated, loading, router]);
 
   // Surface callback errors from query params (e.g., expired magic link)
   useEffect(() => {

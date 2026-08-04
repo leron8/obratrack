@@ -79,7 +79,15 @@ export class AuthService {
   }
 
   async getSessionSnapshot(authUser: AuthenticatedAuthUser): Promise<AuthSessionResponse> {
-    const user = await this.users.findById(authUser.id);
+    let user = await this.users.findById(authUser.id);
+
+    // TEMPORARY QA BYPASS: auto-complete onboarding so QA can test core features
+    // without being blocked by the broken complete_user_onboarding RPC.
+    if (!user || !user.onboarding_completed_at) {
+      await this.autoCompleteOnboarding(authUser, user);
+      user = await this.users.findById(authUser.id);
+    }
+
     const companyContext = await this.resolveCompanyContext({
       userId: authUser.id,
       activeCompanyId: user?.active_company_id ?? null
@@ -96,17 +104,9 @@ export class AuthService {
   }
 
   async completeOnboarding(authUser: AuthenticatedAuthUser, payload: CompleteOnboardingDto): Promise<AuthSessionResponse> {
-    const { error } = await this.serviceDb.rpc("complete_user_onboarding", {
-      p_user_id: authUser.id,
-      p_email: authUser.email,
-      p_full_name: payload.full_name,
-      p_phone_number: payload.phone_number,
-      p_country: payload.country,
-      p_timezone: payload.timezone,
-      p_company_name: payload.company_name
-    });
-
-    if (error) throw error;
+    // TEMPORARY QA BYPASS: perform onboarding writes directly instead of calling
+    // the broken complete_user_onboarding RPC.
+    await this.autoCompleteOnboarding(authUser, null, payload);
     return this.getSessionSnapshot(authUser);
   }
 
@@ -129,6 +129,13 @@ export class AuthService {
     requestedCompanyId?: string;
     activeCompanyId?: string | null;
   }): Promise<CompanyContext> {
+    // TEMPORARY QA BYPASS: ensure onboarding is auto-completed before resolving
+    // company context so protected endpoints never hit the 409 onboarding gate.
+    const user = await this.users.findById(userId);
+    if (!user || !user.onboarding_completed_at) {
+      await this.autoCompleteOnboarding({ id: userId, email: user?.email ?? "" }, user);
+    }
+
     return this.resolveCompanyContext({
       userId,
       requestedCompanyId,
@@ -187,5 +194,78 @@ export class AuthService {
       activeCompany,
       activeRole: activeCompany?.role ?? null
     };
+  }
+
+  // TEMPORARY QA BYPASS: replicate the complete_user_onboarding RPC logic in
+  // TypeScript so users can get into the app while the RPC is broken.
+  private async autoCompleteOnboarding(
+    authUser: AuthenticatedAuthUser,
+    existingUser: AuthUserProfile | null,
+    payload?: CompleteOnboardingDto
+  ): Promise<void> {
+    console.log(`[TEMP QA BYPASS] Auto-completing onboarding for user ${authUser.id} (${authUser.email})`);
+
+    const now = new Date().toISOString();
+    const defaultName = authUser.email.split("@")[0] || "there";
+
+    const { error: userError } = await this.serviceDb.from("users").upsert(
+      {
+        id: authUser.id,
+        email: authUser.email.toLowerCase(),
+        full_name: payload?.full_name ?? existingUser?.full_name ?? defaultName,
+        phone_number: payload?.phone_number ?? existingUser?.phone_number ?? null,
+        country: payload?.country ?? existingUser?.country ?? null,
+        timezone: payload?.timezone ?? existingUser?.timezone ?? "UTC",
+        onboarding_completed_at: now,
+        updated_at: now
+      },
+      { onConflict: "id" }
+    );
+    if (userError) throw userError;
+
+    const memberships = await this.memberships.listByUserId(authUser.id);
+    let targetCompanyId = existingUser?.active_company_id ?? memberships[0]?.id ?? null;
+
+    if (!targetCompanyId) {
+      const companyName = payload?.company_name ?? "Personal";
+      const slug = await this.generateCompanySlug(companyName);
+      const { data: company, error: companyError } = await this.serviceDb
+        .from("companies")
+        .insert({
+          name: companyName,
+          slug,
+          timezone: payload?.timezone ?? existingUser?.timezone ?? "UTC",
+          owner_user_id: authUser.id
+        })
+        .select("id")
+        .single();
+      if (companyError) throw companyError;
+      targetCompanyId = (company as { id: string }).id;
+
+      const { error: memberError } = await this.serviceDb
+        .from("company_members")
+        .insert({ company_id: targetCompanyId, user_id: authUser.id, role: "OWNER" });
+      if (memberError) throw memberError;
+    }
+
+    await this.users.setActiveCompany(authUser.id, targetCompanyId);
+  }
+
+  private async generateCompanySlug(baseName: string): Promise<string> {
+    const normalized = (baseName || "workspace")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const candidate = normalized || "workspace";
+
+    const { data } = await this.serviceDb
+      .from("companies")
+      .select("id")
+      .eq("slug", candidate)
+      .maybeSingle();
+
+    if (!data) return candidate;
+    return `${candidate.slice(0, 48)}-${Math.random().toString(36).slice(2, 10)}`;
   }
 }

@@ -20,26 +20,21 @@ type AppShellProps = {
 export default function AppShell({ children, eyebrow, title, description }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { loading, isAuthenticated, onboardingComplete, activeRole } = useAuth();
+  const { loading, isAuthenticated, activeRole } = useAuth();
   const { canAccessPath } = useAuthorization();
 
   useEffect(() => {
-    if (!loading && isAuthenticated && !onboardingComplete) {
-      router.replace("/onboarding");
-      return;
-    }
-
-    if (!loading && isAuthenticated && onboardingComplete && !canAccessPath(pathname)) {
+    if (!loading && isAuthenticated && !canAccessPath(pathname)) {
       const defaultPath = getDefaultRouteForRole(activeRole);
       router.replace(defaultPath !== pathname && canAccessPath(defaultPath) ? defaultPath : "/unauthorized");
     }
-  }, [activeRole, canAccessPath, isAuthenticated, loading, onboardingComplete, pathname, router]);
+  }, [activeRole, canAccessPath, isAuthenticated, loading, pathname, router]);
 
   if (loading) {
     return <AuthLoadingScreen />;
   }
 
-  if (!isAuthenticated || !onboardingComplete || !canAccessPath(pathname)) {
+  if (!isAuthenticated || !canAccessPath(pathname)) {
     return <AuthLoadingScreen title="Opening your workspace" description="Checking your session and permissions." />;
   }
 
