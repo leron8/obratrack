@@ -1,25 +1,17 @@
-# Frontend (Next.js + React + Chart.js)
+# Frontend
 
-## Run locally
+Next.js 14 application for the ObraTrack dashboard.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+Key additions in this auth update:
 
-- Frontend runs at: `http://localhost:3000`
+- Supabase browser auth client
+- Next.js middleware session refresh
+- login, onboarding, callback, and unauthorized routes
+- authenticated provider/hooks
+- company selector and logout in the shared shell
 
-## Environment variables
+See the root [README](../README.md) for:
 
-Copy `frontend/.env.example` to `.env.local`:
-
-- `NEXT_PUBLIC_API_BASE_URL` (defaults to `http://localhost:3001`)
-- `NEXT_PUBLIC_COMPANY_ID` (uuid used for queries)
-
-## What it shows
-
-- Total income / total expenses / balance (current month)
-- Chart of recent transactions
-- Recent transactions list
-
+- Supabase redirect URL setup
+- required environment variables
+- local development commands

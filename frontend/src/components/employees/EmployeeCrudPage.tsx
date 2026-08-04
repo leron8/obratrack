@@ -11,13 +11,13 @@ import { Dialog } from "../ui/Dialog";
 import { KpiCard } from "../ui/KpiCard";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../hooks/use-auth";
+import { useAuthorization } from "../../hooks/use-authorization";
 import {
   API_BASE_URL,
-  DEFAULT_COMPANY_ID,
   fetchJson,
   formatMoney,
-  getRoleLabel,
-  useDemoRole
+  getRoleLabel
 } from "../../lib/finance-demo";
 
 const PAGE_SIZE = 8;
@@ -127,11 +127,12 @@ function getStatusBadgeClass(status: EmployeeStatus) {
 }
 
 export function EmployeeCrudPage() {
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
-  const [companyIdInput, setCompanyIdInput] = useState(DEFAULT_COMPANY_ID);
+  const { activeCompany, activeRole } = useAuth();
+  const { isFinancialManager } = useAuthorization();
+  const companyId = activeCompany?.id ?? "";
   const [employees, setEmployees] = useState<EmployeeResponse[]>([]);
   const [form, setForm] = useState<EmployeeFormState>(() => createDefaultForm());
-  const [loading, setLoading] = useState(Boolean(DEFAULT_COMPANY_ID));
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +141,6 @@ export function EmployeeCrudPage() {
   const [pendingDelete, setPendingDelete] = useState<EmployeeResponse | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [role, setRole] = useDemoRole();
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
 
   async function load(targetCompanyId = companyId) {
@@ -229,7 +229,7 @@ export function EmployeeCrudPage() {
 
   const latestUpdatedAt =
     employees[0]?.updated_at ? formatDateTime(employees[0].updated_at) : "Sin actividad reciente";
-  const readOnly = role !== "admin";
+  const readOnly = !isFinancialManager;
 
   function resetForm() {
     setForm(createDefaultForm());
@@ -275,7 +275,7 @@ export function EmployeeCrudPage() {
     event.preventDefault();
 
     if (!companyId) {
-      setError("Primero define un ID de empresa.");
+      setError("Selecciona una empresa activa antes de guardar.");
       return;
     }
 
@@ -306,7 +306,7 @@ export function EmployeeCrudPage() {
 
       await fetchJson(url, {
         method: editingItem ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json", "x-user-role": role },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
@@ -328,8 +328,7 @@ export function EmployeeCrudPage() {
 
     try {
       await fetchJson(`${API_BASE_URL}/employees/${pendingDelete.id}?company_id=${encodeURIComponent(companyId)}`, {
-        method: "DELETE",
-        headers: { "x-user-role": role }
+        method: "DELETE"
       });
 
       setPendingDelete(null);
@@ -339,18 +338,6 @@ export function EmployeeCrudPage() {
     } finally {
       setDeleting(false);
     }
-  }
-
-  function handleCompanySubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextCompanyId = companyIdInput.trim();
-
-    if (nextCompanyId === companyId) {
-      void load(nextCompanyId);
-      return;
-    }
-
-    setCompanyId(nextCompanyId);
   }
 
   const tableColumns: Array<CrudTableColumn<EmployeeResponse>> = [
@@ -473,7 +460,7 @@ export function EmployeeCrudPage() {
           <Card className="relative overflow-hidden bg-gradient-to-br from-emerald-500/12 via-emerald-500/5 to-slate-950">
             <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
             <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Estado del espacio</p>
-            <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(role)}</p>
+            <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(activeRole)}</p>
             <p className="mt-2 text-sm text-slate-300">
               {readOnly
                 ? "El modo de solo lectura permite consultar la plantilla sin tocar datos."
@@ -491,29 +478,7 @@ export function EmployeeCrudPage() {
         </div>
 
         <Card className="overflow-hidden p-0">
-          <form onSubmit={handleCompanySubmit} className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1.1fr)_220px_minmax(0,1fr)_auto_auto]">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">ID de empresa</label>
-              <input
-                value={companyIdInput}
-                onChange={(event) => setCompanyIdInput(event.target.value)}
-                placeholder="UUID de la empresa (company_id)"
-                className={inputClassName}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Rol de demo</label>
-              <select
-                value={role}
-                onChange={(event) => setRole(event.target.value as "admin" | "viewer")}
-                className={inputClassName}
-              >
-                <option value="admin">Administrador</option>
-                <option value="viewer">Solo lectura</option>
-              </select>
-            </div>
-
+          <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Buscar empleados</label>
               <div className="relative">
@@ -528,7 +493,7 @@ export function EmployeeCrudPage() {
             </div>
 
             <div className="flex items-end">
-              <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} type="submit">
+              <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} onClick={() => void load(companyId)}>
                 <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
                 {loading ? "Cargando..." : "Actualizar"}
               </Button>
@@ -544,12 +509,12 @@ export function EmployeeCrudPage() {
                 Agregar empleado
               </Button>
             </div>
-          </form>
+          </div>
 
           <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-4 text-sm text-slate-400">
             {companyId
-              ? `Empresa activa: ${companyId}`
-              : "Define un ID de empresa y actualiza para cargar la plantilla en la tabla."}
+              ? `Empresa activa: ${activeCompany?.name ?? companyId}`
+              : "Selecciona una empresa desde el encabezado para cargar la plantilla en la tabla."}
           </div>
         </Card>
 

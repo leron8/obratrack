@@ -45,15 +45,44 @@ export type AuditContext = {
 
 export function createSupabaseClient({
   url,
+  key,
   serviceRoleKey,
   globalHeaders
 }: {
   url: string;
-  serviceRoleKey: string;
+  key?: string;
+  serviceRoleKey?: string;
   globalHeaders?: Record<string, string>;
 }): SupabaseClient {
-  return createClient(url, serviceRoleKey, {
+  const resolvedKey = key ?? serviceRoleKey;
+  if (!resolvedKey) {
+    throw new Error("Missing Supabase key when creating a client.");
+  }
+
+  return createClient(url, resolvedKey, {
     auth: { persistSession: false },
+    ...(globalHeaders ? { global: { headers: globalHeaders } } : {})
+  });
+}
+
+export function createSupabaseUserClient({
+  url,
+  publishableKey,
+  accessToken,
+  globalHeaders
+}: {
+  url: string;
+  publishableKey: string;
+  accessToken: string;
+  globalHeaders?: Record<string, string>;
+}): SupabaseClient {
+  return createClient(url, publishableKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    },
+    accessToken: async () => accessToken,
     ...(globalHeaders ? { global: { headers: globalHeaders } } : {})
   });
 }

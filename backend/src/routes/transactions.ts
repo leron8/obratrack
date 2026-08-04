@@ -14,7 +14,8 @@ import {
   listAccounts,
   listExpenseCategories
 } from "../services/supabase";
-import { RequestError, getRequestDb, getRequestedRole, sendError } from "./http-helpers";
+import { canCreateMovement, canUpdateOrDeleteMovement } from "../modules/auth/permissions";
+import { RequestError, getCurrentRole, getRequestDb, sendError } from "./http-helpers";
 import type { Env } from "../env";
 import type { MovementDirection, MovementKind, PaymentMethod } from "@expenses/shared";
 
@@ -152,6 +153,18 @@ function normalizeMovementPayload({
   return normalized;
 }
 
+function assertCanCreateMovement(req: express.Request, direction: MovementDirection) {
+  if (!canCreateMovement(getCurrentRole(req), direction)) {
+    throw new RequestError(403, "Your company role cannot create this kind of transaction.");
+  }
+}
+
+function assertCanUpdateMovement(req: express.Request) {
+  if (!canUpdateOrDeleteMovement(getCurrentRole(req))) {
+    throw new RequestError(403, "Your company role cannot modify transactions.");
+  }
+}
+
 export function createTransactionsRouter({
   env,
   openaiClient,
@@ -178,6 +191,7 @@ export function createTransactionsRouter({
         text,
         defaultCurrency: env.DEFAULT_CURRENCY
       });
+      assertCanCreateMovement(req, parsed.direction);
 
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
 
@@ -232,6 +246,7 @@ export function createTransactionsRouter({
         text,
         defaultCurrency: env.DEFAULT_CURRENCY
       });
+      assertCanCreateMovement(req, parsed.direction);
 
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
 
@@ -333,15 +348,12 @@ export function createTransactionsRouter({
   router.post("/movements", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const role = getRequestedRole(req);
-      if (role !== "admin") {
-        return res.status(403).json({ error: "Admin role required for write operations." });
-      }
 
       const normalizedPayload = normalizeMovementPayload({
         payload: req.body as Record<string, unknown>,
         requireAmount: true
       });
+      assertCanCreateMovement(req, normalizedPayload.direction as MovementDirection);
 
       // Always set source_module
       if (!normalizedPayload.source_module) {
@@ -365,10 +377,6 @@ export function createTransactionsRouter({
   router.post("/transactions", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const role = getRequestedRole(req);
-      if (role !== "admin") {
-        return res.status(403).json({ error: "Admin role required for write operations." });
-      }
 
       const body = req.body as Record<string, unknown>;
 
@@ -380,6 +388,7 @@ export function createTransactionsRouter({
       else if (transactionType === "payroll") movementKind = "payroll_payment";
       else if (transactionType === "transfer") movementKind = "internal_transfer";
       else if (transactionType === "adjustment") movementKind = "adjustment";
+      assertCanCreateMovement(req, direction);
 
       const payload: Record<string, unknown> = {
         account_id: body.account_id ?? null,
@@ -418,10 +427,7 @@ export function createTransactionsRouter({
   router.put("/movements/:id", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const role = getRequestedRole(req);
-      if (role !== "admin") {
-        return res.status(403).json({ error: "Admin role required for write operations." });
-      }
+      assertCanUpdateMovement(req);
 
       const body = req.body as Record<string, unknown>;
       const parsed = MovementUpdateSchema.parse(body);
@@ -448,10 +454,7 @@ export function createTransactionsRouter({
   router.put("/transactions/:id", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const role = getRequestedRole(req);
-      if (role !== "admin") {
-        return res.status(403).json({ error: "Admin role required for write operations." });
-      }
+      assertCanUpdateMovement(req);
 
       const body = req.body as Record<string, unknown>;
       const payload: Record<string, unknown> = {};
@@ -490,10 +493,7 @@ export function createTransactionsRouter({
   router.delete("/movements/:id", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const role = getRequestedRole(req);
-      if (role !== "admin") {
-        return res.status(403).json({ error: "Admin role required for write operations." });
-      }
+      assertCanUpdateMovement(req);
 
       await deleteMovement({
         db: getRequestDb(req, db),
@@ -512,10 +512,7 @@ export function createTransactionsRouter({
   router.delete("/transactions/:id", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const role = getRequestedRole(req);
-      if (role !== "admin") {
-        return res.status(403).json({ error: "Admin role required for write operations." });
-      }
+      assertCanUpdateMovement(req);
 
       await deleteMovement({
         db: getRequestDb(req, db),

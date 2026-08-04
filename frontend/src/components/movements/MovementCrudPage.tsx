@@ -11,13 +11,13 @@ import { Dialog } from "../ui/Dialog";
 import { KpiCard } from "../ui/KpiCard";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../hooks/use-auth";
+import { useAuthorization } from "../../hooks/use-authorization";
 import {
   API_BASE_URL,
-  DEFAULT_COMPANY_ID,
   fetchJson,
   formatMoney,
-  getRoleLabel,
-  useDemoRole
+  getRoleLabel
 } from "../../lib/finance-demo";
 
 const PAGE_SIZE = 8;
@@ -138,12 +138,12 @@ export function MovementCrudPage({
   amountToneClass
 }: MovementCrudPageProps) {
   const styles = accentStyles[accent];
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
-  const [companyIdInput, setCompanyIdInput] = useState(DEFAULT_COMPANY_ID);
+  const { activeCompany, activeRole } = useAuth();
+  const { isFinancialManager, canCreateMovement } = useAuthorization();
   const [movements, setMovements] = useState<MovementResponse[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [form, setForm] = useState<MovementFormState>(() => createDefaultForm(defaultMovementKind));
-  const [loading, setLoading] = useState(Boolean(DEFAULT_COMPANY_ID));
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,8 +152,8 @@ export function MovementCrudPage({
   const [pendingDelete, setPendingDelete] = useState<MovementResponse | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [role, setRole] = useDemoRole();
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+  const companyId = activeCompany?.id ?? "";
 
   async function load(targetCompanyId = companyId) {
     if (!targetCompanyId) {
@@ -234,7 +234,10 @@ export function MovementCrudPage({
   const displayCurrency = movements[0]?.currency ?? accounts[0]?.currency ?? form.currency;
   const latestCreatedAt =
     movements[0]?.created_at ? formatCreatedAt(movements[0].created_at) : "Sin actividad reciente";
-  const readOnly = role !== "admin";
+  const canCreateRecords = canCreateMovement(direction);
+  const canEditRecords = isFinancialManager;
+  const readOnly = !canEditRecords;
+  const canSubmitForm = editingItem ? canEditRecords : canCreateRecords;
 
   function resetForm() {
     setForm(createDefaultForm(defaultMovementKind));
@@ -271,7 +274,7 @@ export function MovementCrudPage({
     event.preventDefault();
 
     if (!companyId) {
-      setError("Primero define un ID de empresa.");
+      setError("Selecciona una empresa activa antes de guardar.");
       return;
     }
 
@@ -293,7 +296,7 @@ export function MovementCrudPage({
 
       await fetchJson(url, {
         method: editingItem ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json", "x-user-role": role },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
@@ -316,7 +319,7 @@ export function MovementCrudPage({
     try {
       await fetchJson(`${API_BASE_URL}/movements/${pendingDelete.id}?company_id=${encodeURIComponent(companyId)}`, {
         method: "DELETE",
-        headers: { "x-user-role": role }
+        headers: {}
       });
 
       setPendingDelete(null);
@@ -326,18 +329,6 @@ export function MovementCrudPage({
     } finally {
       setDeleting(false);
     }
-  }
-
-  function handleCompanySubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextCompanyId = companyIdInput.trim();
-
-    if (nextCompanyId === companyId) {
-      void load(nextCompanyId);
-      return;
-    }
-
-    setCompanyId(nextCompanyId);
   }
 
   const tableColumns: Array<CrudTableColumn<MovementResponse>> = [
@@ -449,11 +440,13 @@ export function MovementCrudPage({
           <Card className={cn("relative overflow-hidden bg-gradient-to-br", styles.accentPanel)}>
             <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
             <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Estado del espacio</p>
-            <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(role)}</p>
+            <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(activeRole)}</p>
             <p className="mt-2 text-sm text-slate-300">
-              {readOnly
+              {!canCreateRecords
+                ? "Tu rol actual no puede registrar movimientos en este módulo."
+                : readOnly
                 ? "El modo de solo lectura mantiene visible la tabla mientras bloquea las acciones de escritura."
-                : "El modo administrador deja la creacion, edicion y eliminacion a un clic."}
+                : "Tu rol puede crear, editar y eliminar movimientos desde este flujo."}
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <span className={cn("rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]", styles.accentBadge)}>
@@ -467,29 +460,7 @@ export function MovementCrudPage({
         </div>
 
         <Card className="overflow-hidden p-0">
-          <form onSubmit={handleCompanySubmit} className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1.1fr)_220px_minmax(0,1fr)_auto_auto]">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">ID de empresa</label>
-              <input
-                value={companyIdInput}
-                onChange={(event) => setCompanyIdInput(event.target.value)}
-                placeholder="UUID de la empresa (company_id)"
-                className={inputClassName}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Rol de demo</label>
-              <select
-                value={role}
-                onChange={(event) => setRole(event.target.value as "admin" | "viewer")}
-                className={inputClassName}
-              >
-                <option value="admin">Administrador</option>
-                <option value="viewer">Solo lectura</option>
-              </select>
-            </div>
-
+          <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Buscar registros</label>
               <div className="relative">
@@ -504,7 +475,7 @@ export function MovementCrudPage({
             </div>
 
             <div className="flex items-end">
-              <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} type="submit">
+              <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} onClick={() => void load(companyId)}>
                 <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
                 {loading ? "Cargando..." : "Actualizar"}
               </Button>
@@ -513,19 +484,19 @@ export function MovementCrudPage({
             <div className="flex items-end">
               <Button
                 className={cn("h-[52px] w-full gap-2", styles.primaryButton)}
-                disabled={readOnly}
+                disabled={!canCreateRecords}
                 onClick={openCreateDialog}
               >
                 <Plus className="h-4 w-4" />
                 {createLabel}
               </Button>
             </div>
-          </form>
+          </div>
 
           <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-4 text-sm text-slate-400">
             {companyId
-              ? `Empresa activa: ${companyId}`
-              : "Define un ID de empresa y actualiza para cargar los registros mas recientes en la tabla."}
+              ? `Empresa activa: ${activeCompany?.name ?? companyId}`
+              : "Selecciona una empresa desde el encabezado para cargar los registros mas recientes en la tabla."}
           </div>
         </Card>
 
@@ -574,7 +545,7 @@ export function MovementCrudPage({
             <Button variant="secondary" disabled={saving} onClick={() => closeFormDialog()}>
               Cancelar
             </Button>
-            <Button className={cn(styles.primaryButton)} disabled={saving || readOnly} type="submit" form="movement-form">
+            <Button className={cn(styles.primaryButton)} disabled={saving || !canSubmitForm} type="submit" form="movement-form">
               {saving ? "Guardando..." : editingItem ? "Guardar cambios" : createLabel}
             </Button>
           </div>

@@ -13,24 +13,13 @@ import { Bar } from "react-chartjs-2";
 import { Card } from "./ui/Card";
 import { KpiCard } from "./ui/KpiCard";
 import { Skeleton } from "./ui/Skeleton";
+import { useAuth } from "../hooks/use-auth";
+import { useAuthorization } from "../hooks/use-authorization";
+import { fetchJson, formatMoney } from "../lib/finance-demo";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 import type { MovementResponse, DashboardSummary } from "@expenses/shared";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-const DEFAULT_COMPANY_ID = process.env.NEXT_PUBLIC_COMPANY_ID || "";
-
-function formatMoney(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency
-    }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
-}
 
 const MOVEMENT_KIND_LABELS: Record<string, string> = {
   client_income: "Ingreso de cliente",
@@ -51,12 +40,14 @@ const MOVEMENT_KIND_LABELS: Record<string, string> = {
 };
 
 export default function Dashboard() {
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
+  const { activeCompany } = useAuth();
+  const { roleLabel } = useAuthorization();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [movements, setMovements] = useState<MovementResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const companyId = activeCompany?.id ?? "";
 
   const currency = useMemo(() => {
     return movements[0]?.currency ?? "MXN";
@@ -69,26 +60,18 @@ export default function Dashboard() {
     setError(null);
     try {
       if (!companyId) {
-        setError("Configura `NEXT_PUBLIC_COMPANY_ID` (o escribe un id de empresa abajo).");
+        setError("Select an active company to load the dashboard.");
         setMovements([]);
         setSummary(null);
         return;
       }
 
-      const qs = `company_id=${encodeURIComponent(companyId)}`;
-      const summaryRes = await fetch(`${API_BASE_URL}/dashboard?${qs}`);
-      const summaryJson = await summaryRes.json();
+      const summaryJson = (await fetchJson(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"}/dashboard?company_id=${encodeURIComponent(companyId)}`
+      )) as DashboardSummary;
 
-      if (!summaryRes.ok) {
-        const backendError =
-          summaryJson && typeof summaryJson === "object" && "error" in summaryJson
-            ? (summaryJson as { error: string }).error
-            : summaryRes.statusText;
-        throw new Error(`No se pudo cargar el resumen del panel (${summaryRes.status}): ${backendError}`);
-      }
-
-      setSummary(summaryJson as DashboardSummary);
-      setMovements((summaryJson as DashboardSummary).recentMovements ?? []);
+      setSummary(summaryJson);
+      setMovements(summaryJson.recentMovements ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -129,21 +112,22 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 rounded-[32px] border border-slate-800 bg-slate-950 p-5 shadow-soft md:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-4 rounded-[32px] border border-slate-800 bg-slate-950 p-5 shadow-soft md:grid-cols-[1.4fr_0.8fr_0.8fr]">
         <div className="space-y-2">
-          <p className="text-sm text-cyan-300">ID de empresa</p>
-          <input
-            value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
-            placeholder="UUID (company_id)"
-            className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400"
-          />
+          <p className="text-sm text-cyan-300">Active company</p>
+          <p className="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100">
+            {activeCompany?.name ?? "No company selected"}
+          </p>
+        </div>
+        <div className="space-y-2">
+          <p className="text-sm text-cyan-300">Role</p>
+          <p className="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100">{roleLabel}</p>
         </div>
         <button
           onClick={() => void load()}
           className="h-14 w-full rounded-3xl bg-cyan-500 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
         >
-          Actualizar panel
+          Refresh dashboard
         </button>
       </div>
 

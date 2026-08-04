@@ -1,17 +1,14 @@
--- REAGA MVP ERP - normalized rebuild schema
+-- REAGA MVP ERP - Consolidated Schema
 -- PostgreSQL 16 / Supabase compatible.
 --
--- This script intentionally rebuilds the public schema from scratch. Use it only
--- on a disposable/new database or after a verified backup.
+-- This script rebuilds the public schema from scratch.
+-- Use it only on a disposable/new database or after a verified backup.
 --
--- Goals covered by the current Excel operation:
--- - Bank, cash, card and internal transfer ledgers with running balances.
--- - Supplier credits, invoices, advances, remissions, receipts and partial payments.
--- - Weekly payroll by project, including employee loans and payroll deductions.
--- - Fuel imports from Oxxo Gas with vehicle, driver, liters, odometer, city, week and project.
--- - Project/cost allocations for every financial movement.
--- - Source import traceability back to Excel file, sheet and row.
--- - Reporting views that avoid N+1 application queries.
+-- Consolidated from:
+--   - 00_rebuild_mvp_erp_schema.sql (core schema, views, triggers, RLS)
+--   - 09_auth_memberships_and_rls.sql (auth, memberships, RLS policies)
+--
+-- Seed data removed. Run this on an empty database.
 
 BEGIN;
 
@@ -19,6 +16,10 @@ DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+
+-- ============================================================================
+-- ENUM TYPES
+-- ============================================================================
 
 CREATE TYPE public.company_status AS ENUM ('active', 'inactive', 'archived');
 CREATE TYPE public.user_role AS ENUM ('owner', 'admin', 'accountant', 'manager', 'viewer');
@@ -114,6 +115,18 @@ CREATE TYPE public.whatsapp_capture_target AS ENUM (
   'partner_loan',
   'unknown'
 );
+CREATE TYPE public.company_member_role AS ENUM (
+  'OWNER',
+  'ADMIN',
+  'ACCOUNTANT',
+  'INCOME_REGISTRAR',
+  'EXPENSE_REGISTRAR',
+  'VIEWER'
+);
+
+-- ============================================================================
+-- UTILITY FUNCTIONS
+-- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger
@@ -133,6 +146,10 @@ AS $$
   SELECT CASE WHEN denominator IS NULL OR denominator = 0 THEN NULL ELSE numerator / denominator END;
 $$;
 
+-- ============================================================================
+-- CORE TABLES
+-- ============================================================================
+
 CREATE TABLE public.companies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -146,24 +163,37 @@ CREATE TABLE public.companies (
   timezone text NOT NULL DEFAULT 'America/Mexico_City',
   currency text NOT NULL DEFAULT 'MXN',
   status public.company_status NOT NULL DEFAULT 'active',
+  owner_user_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
   CONSTRAINT companies_currency_upper CHECK (currency = upper(currency))
 );
 
-CREATE TABLE public.profiles (
+CREATE TABLE public.users (
   id uuid PRIMARY KEY,
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  role public.user_role NOT NULL DEFAULT 'viewer',
   status text NOT NULL DEFAULT 'active',
   full_name text,
   email text,
-  phone text,
+  phone_number text,
+  country text,
+  timezone text,
+  active_company_id uuid,
+  onboarding_completed_at timestamptz,
+  legacy_company_id uuid,
+  legacy_role public.user_role,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  deleted_at timestamptz,
-  UNIQUE (company_id, email)
+  deleted_at timestamptz
+);
+
+CREATE TABLE public.company_members (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  role public.company_member_role NOT NULL DEFAULT 'VIEWER',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (company_id, user_id)
 );
 
 CREATE TABLE public.business_partners (
@@ -387,7 +417,7 @@ CREATE TABLE public.source_imports (
   source_name text NOT NULL,
   file_name text,
   file_hash text,
-  imported_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  imported_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   imported_at timestamptz NOT NULL DEFAULT now(),
   status public.import_status NOT NULL DEFAULT 'pending',
   rows_total integer NOT NULL DEFAULT 0,
@@ -422,7 +452,7 @@ CREATE TABLE public.account_transfers (
   fee_amount numeric(14,2) NOT NULL DEFAULT 0 CHECK (fee_amount >= 0),
   reference text,
   description text,
-  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (from_account_id <> to_account_id)
@@ -460,9 +490,9 @@ CREATE TABLE public.account_movements (
   source_sheet text,
   source_row integer,
   reconciled_at timestamptz,
-  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  deleted_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  deleted_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   deleted_reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -549,7 +579,7 @@ CREATE TABLE public.financial_documents (
   source_file text,
   source_sheet text,
   source_row integer,
-  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
@@ -613,8 +643,8 @@ CREATE TABLE public.payroll_runs (
   source_import_id uuid REFERENCES public.source_imports(id) ON DELETE SET NULL,
   source_file text,
   source_sheet text,
-  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  approved_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  approved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   approved_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -660,7 +690,7 @@ CREATE TABLE public.employee_loans (
   disbursement_movement_id uuid REFERENCES public.account_movements(id) ON DELETE SET NULL,
   status public.loan_status NOT NULL DEFAULT 'active',
   notes text,
-  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
@@ -888,7 +918,7 @@ CREATE TABLE public.attachments (
   file_name text NOT NULL,
   content_type text,
   storage_path text NOT NULL,
-  uploaded_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  uploaded_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (
     (account_movement_id IS NOT NULL)::integer +
@@ -923,6 +953,27 @@ CREATE TABLE public.audit_events (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- ============================================================================
+-- FOREIGN KEY CONSTRAINTS (deferred to allow circular references)
+-- ============================================================================
+
+ALTER TABLE public.companies
+  ADD CONSTRAINT companies_owner_user_id_fkey
+  FOREIGN KEY (owner_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.users
+  ADD CONSTRAINT users_active_company_id_fkey
+  FOREIGN KEY (active_company_id) REFERENCES public.companies(id) ON DELETE SET NULL;
+
+-- Add the deferred insurance movement reference now that account_movements exists.
+ALTER TABLE public.vehicle_insurance_policies
+  ADD CONSTRAINT vehicle_insurance_policies_account_movement_id_fkey
+  FOREIGN KEY (account_movement_id) REFERENCES public.account_movements(id) ON DELETE SET NULL;
+
+-- ============================================================================
+-- AUDIT FUNCTIONS
+-- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.audit_request_header(header_name text)
 RETURNS text
@@ -1144,23 +1195,25 @@ BEGIN
 END;
 $$;
 
--- Add the deferred insurance movement reference now that account_movements exists.
-ALTER TABLE public.vehicle_insurance_policies
-  ADD CONSTRAINT vehicle_insurance_policies_account_movement_id_fkey
-  FOREIGN KEY (account_movement_id) REFERENCES public.account_movements(id) ON DELETE SET NULL;
+-- ============================================================================
+-- UPDATED-AT TRIGGERS
+-- ============================================================================
 
--- Updated-at triggers.
 CREATE TRIGGER set_companies_updated_at BEFORE UPDATE ON public.companies
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-CREATE TRIGGER set_profiles_updated_at BEFORE UPDATE ON public.profiles
+CREATE TRIGGER set_users_updated_at BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER set_company_members_updated_at BEFORE UPDATE ON public.company_members
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_business_partners_updated_at BEFORE UPDATE ON public.business_partners
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_projects_updated_at BEFORE UPDATE ON public.projects
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-CREATE TRIGGER set_project_workers_updated_at BEFORE UPDATE ON public.project_workers
+CREATE TRIGGER set_project_aliases_updated_at BEFORE UPDATE ON public.project_aliases
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_employees_updated_at BEFORE UPDATE ON public.employees
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER set_project_workers_updated_at BEFORE UPDATE ON public.project_workers
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_vehicles_updated_at BEFORE UPDATE ON public.vehicles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -1217,15 +1270,18 @@ CREATE TRIGGER set_whatsapp_capture_drafts_updated_at BEFORE UPDATE ON public.wh
 CREATE TRIGGER prevent_audit_events_mutation BEFORE UPDATE OR DELETE ON public.audit_events
   FOR EACH ROW EXECUTE FUNCTION public.prevent_audit_event_mutation();
 
--- Append-only audit triggers. These capture row snapshots even for writes that
--- bypass the application layer, as long as they touch the public tables below.
+-- ============================================================================
+-- AUDIT TRIGGERS
+-- ============================================================================
+
 DO $$
 DECLARE
   tbl text;
 BEGIN
   FOREACH tbl IN ARRAY ARRAY[
     'companies',
-    'profiles',
+    'users',
+    'company_members',
     'business_partners',
     'projects',
     'project_aliases',
@@ -1273,8 +1329,10 @@ BEGIN
   END LOOP;
 END$$;
 
--- Foreign key and report indexes. These are intentionally explicit because the
--- MVP dashboards and imports will filter by company + date/source/project often.
+-- ============================================================================
+-- INDEXES
+-- ============================================================================
+
 CREATE INDEX idx_audit_events_company_time ON public.audit_events(company_id, occurred_at DESC);
 CREATE INDEX idx_audit_events_record ON public.audit_events(table_name, record_id, occurred_at DESC);
 CREATE INDEX idx_audit_events_actor ON public.audit_events(company_id, actor_profile_id, occurred_at DESC)
@@ -1283,7 +1341,11 @@ CREATE INDEX idx_audit_events_request ON public.audit_events(request_id)
   WHERE request_id IS NOT NULL;
 CREATE INDEX idx_audit_events_idempotency ON public.audit_events(idempotency_key)
   WHERE idempotency_key IS NOT NULL;
-CREATE INDEX idx_profiles_company ON public.profiles(company_id);
+CREATE INDEX idx_users_email_lower ON public.users(lower(email))
+  WHERE email IS NOT NULL;
+CREATE INDEX idx_company_members_user ON public.company_members(user_id, created_at DESC);
+CREATE INDEX idx_company_members_company_role ON public.company_members(company_id, role);
+CREATE INDEX idx_users_active_company ON public.users(active_company_id);
 CREATE INDEX idx_business_partners_company_type_name ON public.business_partners(company_id, partner_type, name);
 CREATE INDEX idx_projects_company_status ON public.projects(company_id, status) WHERE deleted_at IS NULL;
 CREATE INDEX idx_project_aliases_company_alias ON public.project_aliases(company_id, normalized_alias);
@@ -1350,7 +1412,10 @@ CREATE INDEX idx_whatsapp_capture_document ON public.whatsapp_capture_drafts(fin
 CREATE INDEX idx_attachments_company_document ON public.attachments(company_id, document_id);
 CREATE INDEX idx_attachments_company_movement ON public.attachments(company_id, account_movement_id);
 
--- Reporting views.
+-- ============================================================================
+-- REPORTING VIEWS
+-- ============================================================================
+
 CREATE VIEW public.vw_account_balances AS
 SELECT
   a.company_id,
@@ -1749,7 +1814,7 @@ SELECT
   ae.http_path,
   ae.reason
 FROM public.audit_events ae
-LEFT JOIN public.profiles p ON p.id = ae.actor_profile_id;
+LEFT JOIN public.users p ON p.id = ae.actor_profile_id;
 
 CREATE VIEW public.vw_record_audit_history WITH (security_invoker = true) AS
 SELECT
@@ -1768,10 +1833,144 @@ SELECT
   ae.request_id,
   ae.reason
 FROM public.audit_events ae
-LEFT JOIN public.profiles p ON p.id = ae.actor_profile_id;
+LEFT JOIN public.users p ON p.id = ae.actor_profile_id;
 
--- Basic tenant RLS helper and policies. The backend service role can still bypass
--- RLS, but browser/client access can rely on a JWT claim named company_id.
+-- ============================================================================
+-- AUTH HELPER FUNCTIONS
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.generate_company_slug(base_name text)
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  normalized text;
+  candidate text;
+BEGIN
+  normalized := lower(regexp_replace(COALESCE(NULLIF(trim(base_name), ''), 'workspace'), '[^a-z0-9]+', '-', 'g'));
+  normalized := trim(both '-' from normalized);
+
+  IF normalized = '' THEN
+    normalized := 'workspace';
+  END IF;
+
+  candidate := normalized;
+
+  IF EXISTS (SELECT 1 FROM public.companies WHERE slug = candidate) THEN
+    candidate := left(normalized, 48) || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8);
+  END IF;
+
+  RETURN candidate;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.complete_user_onboarding(
+  p_user_id uuid,
+  p_email text,
+  p_full_name text,
+  p_phone_number text,
+  p_country text,
+  p_timezone text,
+  p_company_name text DEFAULT 'Personal'
+)
+RETURNS TABLE (user_id uuid, company_id uuid)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  normalized_company_name text;
+  target_company_id uuid;
+BEGIN
+  normalized_company_name := COALESCE(NULLIF(trim(p_company_name), ''), 'Personal');
+
+  INSERT INTO public.users (
+    id,
+    email,
+    full_name,
+    phone_number,
+    country,
+    timezone,
+    created_at,
+    updated_at,
+    onboarding_completed_at
+  )
+  VALUES (
+    p_user_id,
+    lower(trim(p_email)),
+    NULLIF(trim(p_full_name), ''),
+    NULLIF(trim(p_phone_number), ''),
+    NULLIF(trim(p_country), ''),
+    NULLIF(trim(p_timezone), ''),
+    now(),
+    now(),
+    now()
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    phone_number = EXCLUDED.phone_number,
+    country = EXCLUDED.country,
+    timezone = EXCLUDED.timezone,
+    updated_at = now();
+
+  SELECT u.active_company_id
+  INTO target_company_id
+  FROM public.users u
+  WHERE u.id = p_user_id;
+
+  IF target_company_id IS NULL THEN
+    SELECT cm.company_id
+    INTO target_company_id
+    FROM public.company_members cm
+    WHERE cm.user_id = p_user_id
+    ORDER BY
+      CASE cm.role
+        WHEN 'OWNER' THEN 0
+        WHEN 'ADMIN' THEN 1
+        ELSE 2
+      END,
+      cm.created_at
+    LIMIT 1;
+  END IF;
+
+  IF target_company_id IS NULL THEN
+    INSERT INTO public.companies (
+      name,
+      slug,
+      timezone,
+      owner_user_id
+    )
+    VALUES (
+      normalized_company_name,
+      public.generate_company_slug(normalized_company_name),
+      COALESCE(NULLIF(trim(p_timezone), ''), 'UTC'),
+      p_user_id
+    )
+    RETURNING id INTO target_company_id;
+
+    INSERT INTO public.company_members (company_id, user_id, role)
+    VALUES (target_company_id, p_user_id, 'OWNER')
+    ON CONFLICT (company_id, user_id) DO NOTHING;
+  ELSE
+    UPDATE public.companies
+    SET owner_user_id = COALESCE(owner_user_id, p_user_id)
+    WHERE id = target_company_id;
+  END IF;
+
+  UPDATE public.users
+  SET
+    active_company_id = target_company_id,
+    onboarding_completed_at = COALESCE(onboarding_completed_at, now()),
+    updated_at = now()
+  WHERE id = p_user_id;
+
+  RETURN QUERY
+  SELECT p_user_id AS user_id, target_company_id AS company_id;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.current_company_id()
 RETURNS uuid
 LANGUAGE plpgsql
@@ -1797,20 +1996,145 @@ EXCEPTION WHEN others THEN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.is_company_member(target_company_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.company_members cm
+    WHERE cm.company_id = target_company_id
+      AND cm.user_id = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.company_role(target_company_id uuid)
+RETURNS public.company_member_role
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT cm.role
+  FROM public.company_members cm
+  WHERE cm.company_id = target_company_id
+    AND cm.user_id = auth.uid()
+  LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION public.has_company_role(
+  target_company_id uuid,
+  allowed_roles public.company_member_role[]
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.company_members cm
+    WHERE cm.company_id = target_company_id
+      AND cm.user_id = auth.uid()
+      AND cm.role = ANY(allowed_roles)
+  );
+$$;
+
+-- ============================================================================
+-- ROW LEVEL SECURITY
+-- ============================================================================
+
+-- Users table: users can only see/update their own record
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS users_self_select ON public.users;
+CREATE POLICY users_self_select ON public.users
+  FOR SELECT USING (id = auth.uid());
+DROP POLICY IF EXISTS users_self_update ON public.users;
+CREATE POLICY users_self_update ON public.users
+  FOR UPDATE USING (id = auth.uid())
+  WITH CHECK (id = auth.uid());
+
+-- Companies: members can read, owners/admins can update, owners can delete
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-CREATE POLICY companies_tenant_select ON public.companies
-  FOR SELECT USING (id = public.current_company_id());
+DROP POLICY IF EXISTS companies_member_select ON public.companies;
+CREATE POLICY companies_member_select ON public.companies
+  FOR SELECT USING (public.is_company_member(id));
+DROP POLICY IF EXISTS companies_admin_update ON public.companies;
+CREATE POLICY companies_admin_update ON public.companies
+  FOR UPDATE USING (public.has_company_role(id, ARRAY['OWNER', 'ADMIN']::public.company_member_role[]))
+  WITH CHECK (public.has_company_role(id, ARRAY['OWNER', 'ADMIN']::public.company_member_role[]));
+DROP POLICY IF EXISTS companies_owner_delete ON public.companies;
+CREATE POLICY companies_owner_delete ON public.companies
+  FOR DELETE USING (public.has_company_role(id, ARRAY['OWNER']::public.company_member_role[]));
 
+-- Company members: members can read, admins can insert/update/delete
+ALTER TABLE public.company_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS company_members_member_select ON public.company_members;
+CREATE POLICY company_members_member_select ON public.company_members
+  FOR SELECT USING (public.is_company_member(company_id));
+DROP POLICY IF EXISTS company_members_admin_insert ON public.company_members;
+CREATE POLICY company_members_admin_insert ON public.company_members
+  FOR INSERT WITH CHECK (public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN']::public.company_member_role[]));
+DROP POLICY IF EXISTS company_members_admin_update ON public.company_members;
+CREATE POLICY company_members_admin_update ON public.company_members
+  FOR UPDATE USING (public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN']::public.company_member_role[]))
+  WITH CHECK (public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN']::public.company_member_role[]));
+DROP POLICY IF EXISTS company_members_admin_delete ON public.company_members;
+CREATE POLICY company_members_admin_delete ON public.company_members
+  FOR DELETE USING (public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN']::public.company_member_role[]));
+
+-- Audit events: members can read
 ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
-CREATE POLICY audit_events_tenant_select ON public.audit_events
-  FOR SELECT USING (company_id = public.current_company_id());
+DROP POLICY IF EXISTS audit_events_member_select ON public.audit_events;
+CREATE POLICY audit_events_member_select ON public.audit_events
+  FOR SELECT USING (public.is_company_member(company_id));
 
+-- Account movements: role-based insert/update/delete
+ALTER TABLE public.account_movements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS account_movements_member_select ON public.account_movements;
+CREATE POLICY account_movements_member_select ON public.account_movements
+  FOR SELECT USING (public.is_company_member(company_id));
+DROP POLICY IF EXISTS account_movements_financial_insert ON public.account_movements;
+CREATE POLICY account_movements_financial_insert ON public.account_movements
+  FOR INSERT WITH CHECK (
+    public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN', 'ACCOUNTANT']::public.company_member_role[])
+  );
+DROP POLICY IF EXISTS account_movements_income_registrar_insert ON public.account_movements;
+CREATE POLICY account_movements_income_registrar_insert ON public.account_movements
+  FOR INSERT WITH CHECK (
+    direction = 'in'
+    AND public.has_company_role(company_id, ARRAY['INCOME_REGISTRAR']::public.company_member_role[])
+  );
+DROP POLICY IF EXISTS account_movements_expense_registrar_insert ON public.account_movements;
+CREATE POLICY account_movements_expense_registrar_insert ON public.account_movements
+  FOR INSERT WITH CHECK (
+    direction = 'out'
+    AND public.has_company_role(company_id, ARRAY['EXPENSE_REGISTRAR']::public.company_member_role[])
+  );
+DROP POLICY IF EXISTS account_movements_financial_update ON public.account_movements;
+CREATE POLICY account_movements_financial_update ON public.account_movements
+  FOR UPDATE USING (
+    public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN', 'ACCOUNTANT']::public.company_member_role[])
+  )
+  WITH CHECK (
+    public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN', 'ACCOUNTANT']::public.company_member_role[])
+  );
+DROP POLICY IF EXISTS account_movements_financial_delete ON public.account_movements;
+CREATE POLICY account_movements_financial_delete ON public.account_movements
+  FOR DELETE USING (
+    public.has_company_role(company_id, ARRAY['OWNER', 'ADMIN', 'ACCOUNTANT']::public.company_member_role[])
+  );
+
+-- Apply RLS to all other tenant tables
 DO $$
 DECLARE
   tbl text;
 BEGIN
   FOREACH tbl IN ARRAY ARRAY[
-    'profiles',
     'business_partners',
     'projects',
     'project_aliases',
@@ -1826,7 +2150,6 @@ BEGIN
     'source_imports',
     'import_rows',
     'account_transfers',
-    'account_movements',
     'bank_checks',
     'transaction_allocations',
     'supplier_credit_accounts',
@@ -1851,64 +2174,41 @@ BEGIN
   ]
   LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
+
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', tbl || '_member_select', tbl);
     EXECUTE format(
-      'CREATE POLICY %I ON public.%I FOR SELECT USING (company_id = public.current_company_id())',
-      tbl || '_tenant_select',
+      'CREATE POLICY %I ON public.%I FOR SELECT USING (public.is_company_member(company_id))',
+      tbl || '_member_select',
       tbl
     );
+
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', tbl || '_financial_insert', tbl);
     EXECUTE format(
-      'CREATE POLICY %I ON public.%I FOR INSERT WITH CHECK (company_id = public.current_company_id())',
-      tbl || '_tenant_insert',
+      'CREATE POLICY %I ON public.%I FOR INSERT WITH CHECK (public.has_company_role(company_id, ARRAY[''OWNER'', ''ADMIN'', ''ACCOUNTANT'']::public.company_member_role[]))',
+      tbl || '_financial_insert',
       tbl
     );
+
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', tbl || '_financial_update', tbl);
     EXECUTE format(
-      'CREATE POLICY %I ON public.%I FOR UPDATE USING (company_id = public.current_company_id()) WITH CHECK (company_id = public.current_company_id())',
-      tbl || '_tenant_update',
+      'CREATE POLICY %I ON public.%I FOR UPDATE USING (public.has_company_role(company_id, ARRAY[''OWNER'', ''ADMIN'', ''ACCOUNTANT'']::public.company_member_role[])) WITH CHECK (public.has_company_role(company_id, ARRAY[''OWNER'', ''ADMIN'', ''ACCOUNTANT'']::public.company_member_role[]))',
+      tbl || '_financial_update',
       tbl
     );
+
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', tbl || '_financial_delete', tbl);
     EXECUTE format(
-      'CREATE POLICY %I ON public.%I FOR DELETE USING (company_id = public.current_company_id())',
-      tbl || '_tenant_delete',
+      'CREATE POLICY %I ON public.%I FOR DELETE USING (public.has_company_role(company_id, ARRAY[''OWNER'', ''ADMIN'', ''ACCOUNTANT'']::public.company_member_role[]))',
+      tbl || '_financial_delete',
       tbl
     );
   END LOOP;
-END$$;
+END $$;
 
--- Demo seed keeps local examples working after a rebuild.
-INSERT INTO public.companies (
-  id,
-  name,
-  legal_name,
-  slug,
-  industry,
-  timezone,
-  currency
-) VALUES (
-  '00000000-0000-0000-0000-000000000001',
-  'Demo Company',
-  'Demo Company',
-  'demo-company',
-  'construction',
-  'America/Mexico_City',
-  'MXN'
-);
+-- ============================================================================
+-- SUPABASE GRANTS
+-- ============================================================================
 
-INSERT INTO public.financial_accounts (
-  company_id,
-  name,
-  account_type,
-  currency,
-  opening_balance,
-  opening_balance_date
-) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'Banorte principal', 'bank', 'MXN', 0, current_date),
-  ('00000000-0000-0000-0000-000000000001', 'Caja efectivo', 'cash', 'MXN', 0, current_date),
-  ('00000000-0000-0000-0000-000000000001', 'Tarjetas empresariales', 'credit_card', 'MXN', 0, current_date),
-  ('00000000-0000-0000-0000-000000000001', 'Oxxo Gas', 'fuel_card', 'MXN', 0, current_date);
-
--- Restore common Supabase grants only when those roles exist. This keeps the
--- script runnable in plain Postgres instances where anon/authenticated roles do
--- not exist yet.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
@@ -1929,3 +2229,14 @@ BEGIN
 END$$;
 
 COMMIT;
+
+</parameter>
+<task_progress>
+- [x] Analyze current SQL files and README
+- [x] Identify the latest schema and dependencies
+- [x] Consolidate SQL files into a single schema file
+- [ ] Remove seed files
+- [ ] Fix the "documents" relation error
+- [ ] Verify the consolidated schema is correct
+</task_progress>
+</write_to_file>

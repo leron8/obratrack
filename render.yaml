@@ -20,12 +20,20 @@ services:
         value: whisper-1
       - key: OPENAI_PARSING_MODEL
         value: gpt-4o-mini
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
       - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: DEFAULT_COMPANY_ID
-        value: "00000000-0000-0000-0000-000000000001"
+        value: ""
       - key: DEFAULT_CURRENCY
         value: MXN
     autoDeploy: true
