@@ -1,11 +1,14 @@
 import { z } from "zod";
 
+const DEFAULT_FRONTEND_URL = "http://localhost:3000";
+const PRODUCTION_FRONTEND_URL = "https://obratrack-frontend.vercel.app";
+
 const BaseEnvSchema = z.object({
   PORT: z.coerce.number().default(3001),
-  FRONTEND_URL: z.string().url().default("http://localhost:3000"),
+  FRONTEND_URL: z.string().url().default(DEFAULT_FRONTEND_URL),
   CORS_ORIGINS: z
     .string()
-    .default("http://localhost:3000")
+    .default(`${DEFAULT_FRONTEND_URL},${PRODUCTION_FRONTEND_URL}`)
     .transform((value) =>
       value
         .split(",")
