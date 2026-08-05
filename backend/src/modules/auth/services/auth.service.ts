@@ -83,7 +83,7 @@ export class AuthService {
 
     // TEMPORARY QA BYPASS: auto-complete onboarding so QA can test core features
     // without being blocked by the broken complete_user_onboarding RPC.
-    if (!user || !user.onboarding_completed_at) {
+    if (!user || !user.onboarding_completed_at || !user.active_company_id) {
       await this.autoCompleteOnboarding(authUser, user);
       user = await this.users.findById(authUser.id);
     }
@@ -132,7 +132,7 @@ export class AuthService {
     // TEMPORARY QA BYPASS: ensure onboarding is auto-completed before resolving
     // company context so protected endpoints never hit the 409 onboarding gate.
     const user = await this.users.findById(userId);
-    if (!user || !user.onboarding_completed_at) {
+    if (!user || !user.onboarding_completed_at || !user.active_company_id) {
       await this.autoCompleteOnboarding({ id: userId, email: user?.email ?? "" }, user);
     }
 
@@ -223,24 +223,42 @@ export class AuthService {
     );
     if (userError) throw userError;
 
+    // Re-check memberships after the user upsert — a concurrent request may
+    // have already created the company/membership.
     const memberships = await this.memberships.listByUserId(authUser.id);
     let targetCompanyId = existingUser?.active_company_id ?? memberships[0]?.id ?? null;
 
     if (!targetCompanyId) {
       const companyName = payload?.company_name ?? "Personal";
-      const slug = await this.generateCompanySlug(companyName);
-      const { data: company, error: companyError } = await this.serviceDb
-        .from("companies")
-        .insert({
-          name: companyName,
-          slug,
-          timezone: payload?.timezone ?? existingUser?.timezone ?? "UTC",
-          owner_user_id: authUser.id
-        })
-        .select("id")
-        .single();
-      if (companyError) throw companyError;
-      targetCompanyId = (company as { id: string }).id;
+      const timezone = payload?.timezone ?? existingUser?.timezone ?? "UTC";
+
+      // Create the company. If a concurrent first-login request already claimed
+      // the same slug (unique constraint violation), retry with a fresh slug.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const slug = await this.generateCompanySlug(companyName);
+        const { data: company, error: companyError } = await this.serviceDb
+          .from("companies")
+          .insert({
+            name: companyName,
+            slug,
+            timezone,
+            owner_user_id: authUser.id
+          })
+          .select("id")
+          .single();
+
+        if (!companyError) {
+          targetCompanyId = (company as { id: string }).id;
+          break;
+        }
+
+        // 23505 = unique_violation (companies_slug_key)
+        if (companyError.code !== "23505") throw companyError;
+      }
+
+      if (!targetCompanyId) {
+        throw new Error("Unable to create the initial company. Please try again.");
+      }
 
       const { error: memberError } = await this.serviceDb
         .from("company_members")
