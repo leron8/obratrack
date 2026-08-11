@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useState, type FormEvent } from "react";
-import type { MovementDirection, MovementKind, MovementResponse } from "@expenses/shared";
+import type { MovementDirection, MovementKind, MovementResponse, ProjectResponse } from "@expenses/shared";
 import { Pencil, Plus, RefreshCcw, Search, Trash2 } from "lucide-react";
 import AppShell from "../AppShell";
 import { CrudTable, type CrudTableColumn } from "../crud/CrudTable";
@@ -36,6 +36,7 @@ type MovementFormState = {
   currency: string;
   movement_kind: MovementKind;
   account_id: string;
+  project_id: string;
   notes: string;
 };
 
@@ -105,6 +106,7 @@ function createDefaultForm(defaultMovementKind: MovementKind): MovementFormState
     currency: "MXN",
     movement_kind: defaultMovementKind,
     account_id: "",
+    project_id: "",
     notes: ""
   };
 }
@@ -142,6 +144,7 @@ export function MovementCrudPage({
   const { isFinancialManager, canCreateMovement } = useAuthorization();
   const [movements, setMovements] = useState<MovementResponse[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [form, setForm] = useState<MovementFormState>(() => createDefaultForm(defaultMovementKind));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -161,6 +164,7 @@ export function MovementCrudPage({
       setError(null);
       setMovements([]);
       setAccounts([]);
+      setProjects([]);
       return;
     }
 
@@ -168,15 +172,17 @@ export function MovementCrudPage({
     setError(null);
 
     try {
-      const [movementsData, accountsData] = await Promise.all([
+      const [movementsData, accountsData, projectsData] = await Promise.all([
         fetchJson(
           `${API_BASE_URL}/movements?company_id=${encodeURIComponent(targetCompanyId)}&direction=${direction}&limit=120`
         ),
-        fetchJson(`${API_BASE_URL}/accounts?company_id=${encodeURIComponent(targetCompanyId)}`)
+        fetchJson(`${API_BASE_URL}/accounts?company_id=${encodeURIComponent(targetCompanyId)}`),
+        fetchJson(`${API_BASE_URL}/projects?company_id=${encodeURIComponent(targetCompanyId)}&limit=200`)
       ]);
 
       setMovements((movementsData.movements ?? []) as MovementResponse[]);
       setAccounts((accountsData.accounts ?? []) as AccountOption[]);
+      setProjects((projectsData.projects ?? []) as ProjectResponse[]);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
@@ -199,6 +205,7 @@ export function MovementCrudPage({
         movement.notes,
         movement.account_name,
         movement.account_id,
+        movement.project_name,
         movement.movement_date,
         kindLabel
       ]
@@ -265,6 +272,7 @@ export function MovementCrudPage({
       currency: item.currency ?? "MXN",
       movement_kind: item.movement_kind,
       account_id: item.account_id ?? "",
+      project_id: item.project_id ?? "",
       notes: item.notes ?? ""
     });
     setIsFormOpen(true);
@@ -284,6 +292,7 @@ export function MovementCrudPage({
     try {
       const payload = {
         account_id: form.account_id || null,
+        project_id: form.project_id || null,
         movement_date: form.movement_date,
         direction,
         movement_kind: form.movement_kind,
@@ -362,6 +371,15 @@ export function MovementCrudPage({
         <div>
           <p className="font-medium text-white">{item.account_name ?? "Cuenta sin asignar"}</p>
           <p className="mt-1 text-xs text-slate-500">{item.account_id}</p>
+        </div>
+      )
+    },
+    {
+      key: "project",
+      header: "Obra",
+      cell: (item) => (
+        <div>
+          <p className="font-medium text-white">{item.project_name ?? "Sin obra"}</p>
         </div>
       )
     },
@@ -612,6 +630,23 @@ export function MovementCrudPage({
               {accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name} ({account.account_type})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-300">Obra</label>
+            <select
+              value={form.project_id}
+              onChange={(event) => setForm((current) => ({ ...current, project_id: event.target.value }))}
+              className={inputClassName}
+            >
+              <option value="">Sin obra asignada</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                  {project.code ? ` (${project.code})` : ""}
                 </option>
               ))}
             </select>
