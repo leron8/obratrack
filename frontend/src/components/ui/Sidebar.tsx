@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Folder, DollarSign, Users, ClipboardList, Truck, Building2, FileText, Settings2, CalendarCheck, CreditCard } from "lucide-react";
+import { LayoutDashboard, Folder, DollarSign, Users, ClipboardList, Truck, Building2, FileText, Settings2, CalendarCheck, CreditCard, Wallet } from "lucide-react";
 import { useAuthorization } from "../../hooks/use-authorization";
 import { cn } from "../../lib/utils";
 
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/projects", label: "Proyectos", icon: Folder },
   { href: "/income", label: "Ingresos", icon: DollarSign },
   { href: "/expenses", label: "Gastos", icon: CreditCard },
+  { href: "/accounts", label: "Cuentas", icon: Wallet },
   { href: "/employees", label: "Empleados", icon: Users },
   { href: "/payroll", label: "Nomina", icon: ClipboardList },
   { href: "/vehicles", label: "Vehiculos", icon: Truck },

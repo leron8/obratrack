@@ -176,7 +176,7 @@ export function MovementCrudPage({
         fetchJson(
           `${API_BASE_URL}/movements?company_id=${encodeURIComponent(targetCompanyId)}&direction=${direction}&limit=120`
         ),
-        fetchJson(`${API_BASE_URL}/accounts?company_id=${encodeURIComponent(targetCompanyId)}`),
+        fetchJson(`${API_BASE_URL}/accounts?company_id=${encodeURIComponent(targetCompanyId)}&status=active`),
         fetchJson(`${API_BASE_URL}/projects?company_id=${encodeURIComponent(targetCompanyId)}&limit=200`)
       ]);
 

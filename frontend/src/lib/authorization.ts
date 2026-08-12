@@ -33,6 +33,10 @@ export function canAccessPath(role: CompanyRole | null | undefined, pathname: st
     return canCreateMovement(role, "out") || role === "VIEWER";
   }
 
+  if (pathname.startsWith("/accounts")) {
+    return isFinancialManager(role) || role === "VIEWER";
+  }
+
   if (pathname.startsWith("/projects")) {
     return isFinancialManager(role) || role === "VIEWER";
   }

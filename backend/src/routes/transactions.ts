@@ -11,13 +11,17 @@ import {
   getMovement,
   reportMonthMovements,
   updateMovement,
-  listAccounts,
-  listExpenseCategories
+  listExpenseCategories,
+  createAccount,
+  updateAccount,
+  deleteAccount,
+  getAccount,
+  listFinancialAccounts
 } from "../services/supabase";
 import { canCreateMovement, canUpdateOrDeleteMovement } from "../modules/auth/permissions";
 import { RequestError, getCurrentRole, getRequestDb, sendError } from "./http-helpers";
 import type { Env } from "../env";
-import type { MovementDirection, MovementKind, PaymentMethod } from "@expenses/shared";
+import type { MovementDirection, MovementKind, PaymentMethod, AccountStatus } from "@expenses/shared";
 
 const DirectionSchema = z.enum(["in", "out"]);
 const MovementKindSchema = z.enum([
@@ -64,6 +68,80 @@ const OptionalDateSchema = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.").nullable().optional()
 );
+
+const AccountTypeSchema = z.enum([
+  "bank",
+  "cash",
+  "petty_cash",
+  "credit_card",
+  "debit_card",
+  "fuel_card",
+  "loan",
+  "investment",
+  "clearing"
+]);
+
+const AccountStatusSchema = z.enum(["active", "inactive", "closed"]);
+
+const AccountCurrencySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(12)
+  .transform((value) => value.toUpperCase());
+
+const AccountWriteSchema = z
+  .object({
+    name: z.string().trim().min(1, "Account name is required.").max(180),
+    account_type: AccountTypeSchema,
+    bank_name: NullableStringSchema,
+    account_number: NullableStringSchema,
+    card_last4: NullableStringSchema,
+    owner_employee_id: NullableUuidSchema,
+    currency: AccountCurrencySchema.optional().default("MXN"),
+    opening_balance: z.coerce.number().min(0).optional().default(0),
+    opening_balance_date: OptionalDateSchema,
+    credit_limit: z.coerce.number().min(0).nullable().optional(),
+    status: AccountStatusSchema.optional().default("active"),
+    notes: NullableStringSchema
+  })
+  .strip();
+
+const AccountUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Account name is required.").max(180).optional(),
+    account_type: AccountTypeSchema.optional(),
+    bank_name: NullableStringSchema,
+    account_number: NullableStringSchema,
+    card_last4: NullableStringSchema,
+    owner_employee_id: NullableUuidSchema,
+    currency: AccountCurrencySchema.optional(),
+    opening_balance: z.coerce.number().min(0).optional(),
+    opening_balance_date: OptionalDateSchema,
+    credit_limit: z.coerce.number().min(0).nullable().optional(),
+    status: AccountStatusSchema.optional(),
+    notes: NullableStringSchema
+  })
+  .strip();
+
+function normalizeAccountPayload({
+  payload,
+  isUpdate = false
+}: {
+  payload: Record<string, unknown>;
+  isUpdate?: boolean;
+}) {
+  const parsed = (isUpdate ? AccountUpdateSchema : AccountWriteSchema).parse(payload);
+  const normalized: Record<string, unknown> = Object.fromEntries(
+    Object.entries(parsed).filter(([, value]) => value !== undefined)
+  );
+
+  if (Object.keys(normalized).length === 0) {
+    throw new RequestError(400, "No valid account fields provided.");
+  }
+
+  return normalized;
+}
 
 const MovementWriteSchema = z
   .object({
@@ -560,14 +638,99 @@ export function createTransactionsRouter({
 
   // ── Lookups ───────────────────────────────────────────────────────
 
+  // ── Financial accounts CRUD ─────────────────────────────────────────
+
   router.get("/accounts", async (req, res) => {
     try {
       const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
-      const accounts = await listAccounts({ db: getRequestDb(req, db), companyId });
+      const status =
+        typeof req.query.status === "string" && AccountStatusSchema.safeParse(req.query.status).success
+          ? (req.query.status as AccountStatus)
+          : undefined;
+
+      const accounts = await listFinancialAccounts({ db: getRequestDb(req, db), companyId, status });
       return res.json({ accounts });
     } catch (error) {
       console.error("list-accounts error:", error);
       return sendError(res, error, "Unable to list accounts.");
+    }
+  });
+
+  router.get("/accounts/:id", async (req, res) => {
+    try {
+      const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
+      const account = await getAccount({
+        db: getRequestDb(req, db),
+        companyId,
+        accountId: req.params.id
+      });
+
+      if (!account) {
+        return res.status(404).json({ error: "Account not found." });
+      }
+
+      return res.json({ account });
+    } catch (error) {
+      console.error("get-account error:", error);
+      return sendError(res, error, "Unable to get account.");
+    }
+  });
+
+  router.post("/accounts", async (req, res) => {
+    try {
+      const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
+      assertCanUpdateMovement(req);
+
+      const account = await createAccount({
+        db: getRequestDb(req, db),
+        companyId,
+        payload: normalizeAccountPayload({ payload: req.body as Record<string, unknown> })
+      });
+
+      return res.json({ account });
+    } catch (error) {
+      console.error("create-account error:", error);
+      return sendError(res, error, "Unable to create account.");
+    }
+  });
+
+  router.put("/accounts/:id", async (req, res) => {
+    try {
+      const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
+      assertCanUpdateMovement(req);
+
+      const account = await updateAccount({
+        db: getRequestDb(req, db),
+        companyId,
+        accountId: req.params.id,
+        payload: normalizeAccountPayload({
+          payload: req.body as Record<string, unknown>,
+          isUpdate: true
+        })
+      });
+
+      return res.json({ account });
+    } catch (error) {
+      console.error("update-account error:", error);
+      return sendError(res, error, "Unable to update account.");
+    }
+  });
+
+  router.delete("/accounts/:id", async (req, res) => {
+    try {
+      const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
+      assertCanUpdateMovement(req);
+
+      await deleteAccount({
+        db: getRequestDb(req, db),
+        companyId,
+        accountId: req.params.id
+      });
+
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("delete-account error:", error);
+      return sendError(res, error, "Unable to delete account.");
     }
   });
 

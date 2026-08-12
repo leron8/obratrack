@@ -24,7 +24,10 @@ import type {
   FinancialDocumentRow,
   PayrollRun,
   PayrollLine,
-  EmployeeLoanBalance
+  EmployeeLoanBalance,
+  AccountStatus,
+  AccountType,
+  FinancialAccountResponse
 } from "@expenses/shared";
 
 export type AuditContext = {
@@ -1465,6 +1468,173 @@ export async function listAccounts({
 
   if (error) throw error;
   return data ?? [];
+}
+
+// ── Financial accounts CRUD ───────────────────────────────────────────
+
+type AccountFinancialRow = {
+  id: string;
+  company_id: string;
+  name: string;
+  account_type: AccountType;
+  bank_name: string | null;
+  account_number: string | null;
+  card_last4: string | null;
+  owner_employee_id: string | null;
+  currency: string;
+  opening_balance: number | string;
+  opening_balance_date: string;
+  credit_limit: number | string | null;
+  status: AccountStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function normalizeAccountRow(
+  row: AccountFinancialRow & { employees?: { full_name?: string | null } | null }
+): FinancialAccountResponse {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    name: row.name,
+    account_type: row.account_type,
+    bank_name: row.bank_name,
+    account_number: row.account_number,
+    card_last4: row.card_last4,
+    owner_employee_id: row.owner_employee_id,
+    owner_employee_name: row.employees?.full_name ?? null,
+    currency: row.currency,
+    opening_balance: Number(row.opening_balance),
+    opening_balance_date: row.opening_balance_date,
+    credit_limit: row.credit_limit === null ? null : Number(row.credit_limit),
+    status: row.status,
+    notes: row.notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
+export async function listFinancialAccounts({
+  db,
+  companyId,
+  status
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  status?: AccountStatus;
+}): Promise<FinancialAccountResponse[]> {
+  let query = db
+    .from("financial_accounts")
+    .select("*, employees!owner_employee_id(full_name)")
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .order("name");
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  return ((data ?? []) as Array<AccountFinancialRow & { employees?: { full_name?: string | null } | null }>).map(
+    normalizeAccountRow
+  );
+}
+
+export async function getAccount({
+  db,
+  companyId,
+  accountId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  accountId: string;
+}): Promise<FinancialAccountResponse | null> {
+  const { data, error } = await db
+    .from("financial_accounts")
+    .select("*, employees!owner_employee_id(full_name)")
+    .eq("id", accountId)
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+
+  return normalizeAccountRow(
+    data as AccountFinancialRow & { employees?: { full_name?: string | null } | null }
+  );
+}
+
+export async function createAccount({
+  db,
+  companyId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  payload: Record<string, unknown>;
+}): Promise<FinancialAccountResponse> {
+  const { data, error } = await db
+    .from("financial_accounts")
+    .insert({ ...payload, company_id: companyId })
+    .select("*, employees!owner_employee_id(full_name)")
+    .single();
+
+  if (error) throw error;
+
+  return normalizeAccountRow(
+    data as AccountFinancialRow & { employees?: { full_name?: string | null } | null }
+  );
+}
+
+export async function updateAccount({
+  db,
+  companyId,
+  accountId,
+  payload
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  accountId: string;
+  payload: Record<string, unknown>;
+}): Promise<FinancialAccountResponse> {
+  const { data, error } = await db
+    .from("financial_accounts")
+    .update(payload)
+    .eq("id", accountId)
+    .eq("company_id", companyId)
+    .select("*, employees!owner_employee_id(full_name)")
+    .single();
+
+  if (error) throw error;
+
+  return normalizeAccountRow(
+    data as AccountFinancialRow & { employees?: { full_name?: string | null } | null }
+  );
+}
+
+export async function deleteAccount({
+  db,
+  companyId,
+  accountId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+  accountId: string;
+}): Promise<void> {
+  const { error } = await db
+    .from("financial_accounts")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", accountId)
+    .eq("company_id", companyId);
+
+  if (error) throw error;
 }
 
 // ── Expenses categories (simple lookup) ───────────────────────────────

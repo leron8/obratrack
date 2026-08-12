@@ -48,6 +48,8 @@ export type AccountType =
   | "investment"
   | "clearing";
 
+export type AccountStatus = "active" | "inactive" | "closed";
+
 export type PartnerType = "client" | "supplier" | "lender" | "contractor" | "other";
 
 export type ProjectStatus =
@@ -394,6 +396,26 @@ export type AccountBalance = {
   movement_delta: number;
   current_balance: number;
   last_movement_date: string | null;
+};
+
+export type FinancialAccountResponse = {
+  id: string;
+  company_id: string;
+  name: string;
+  account_type: AccountType;
+  bank_name: string | null;
+  account_number: string | null;
+  card_last4: string | null;
+  owner_employee_id: string | null;
+  owner_employee_name?: string | null;
+  currency: string;
+  opening_balance: number;
+  opening_balance_date: string;
+  credit_limit: number | null;
+  status: AccountStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ExpenseByCategory = {
