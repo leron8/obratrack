@@ -36,6 +36,7 @@ CREATE TYPE public.account_type AS ENUM (
   'debit_card',
   'fuel_card',
   'loan',
+  'credit_line',
   'investment',
   'clearing'
 );
@@ -58,7 +59,8 @@ CREATE TYPE public.money_movement_kind AS ENUM (
   'bank_fee',
   'tax_payment',
   'internal_transfer',
-  'adjustment'
+  'adjustment',
+  'credit_line_disbursement'
 );
 CREATE TYPE public.payment_method AS ENUM (
   'cash',

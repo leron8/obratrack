@@ -2,7 +2,8 @@
 
 import { useDeferredValue, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { AccountStatus, AccountType, EmployeeResponse, FinancialAccountResponse } from "@expenses/shared";
-import { Pencil, Plus, RefreshCcw, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Activity, Pencil, Plus, RefreshCcw, Search, Trash2 } from "lucide-react";
 import AppShell from "../AppShell";
 import { CrudTable, type CrudTableColumn } from "../crud/CrudTable";
 import { ConfirmDialog } from "../crud/ConfirmDialog";
@@ -25,6 +26,7 @@ const ACCOUNT_TYPE_OPTIONS: Array<{ value: AccountType; label: string }> = [
   { value: "debit_card", label: "Tarjeta de debito" },
   { value: "fuel_card", label: "Tarjeta de combustible" },
   { value: "loan", label: "Prestamo" },
+  { value: "credit_line", label: "Linea de credito" },
   { value: "investment", label: "Inversion" },
   { value: "clearing", label: "Liquidacion" }
 ];
@@ -257,7 +259,6 @@ export function AccountCrudPage() {
 
     try {
       const payload = {
-        name: form.name.trim(),
         account_type: form.account_type,
         bank_name: form.bank_name.trim() || null,
         account_number: form.account_number.trim() || null,
@@ -447,7 +448,7 @@ return (
         </div>
 
         <Card className="overflow-hidden p-0">
-          <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Buscar cuentas</label>
               <div className="relative">
@@ -459,6 +460,16 @@ return (
                   className={cn(inputClassName, "pl-11")}
                 />
               </div>
+            </div>
+
+            <div className="flex items-end">
+              <Link
+                href="/accounts/movements"
+                className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/40 px-4 text-sm font-medium text-slate-200 transition hover:bg-slate-800"
+              >
+                <Activity className="h-4 w-4" />
+                Ver saldos
+              </Link>
             </div>
 
             <div className="flex items-end">
@@ -545,18 +556,7 @@ return (
         }
       >
         <form id="account-form" onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Nombre de la cuenta</label>
-            <input
-              value={form.name}
-              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-              placeholder="Ej. BANORTE"
-              className={inputClassName}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium text-slate-300">Tipo de cuenta</label>
             <select
               value={form.account_type}

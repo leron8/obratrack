@@ -5,7 +5,8 @@ const MOVEMENT_KIND_LABELS = {
   cash_income: "Ingreso en efectivo",
   invoice_exchange: "Intercambio de factura",
   partner_loan_repayment: "Pago de prestamo de socio",
-  employee_loan_repayment: "Pago de prestamo de empleado"
+  employee_loan_repayment: "Pago de prestamo de empleado",
+  credit_line_disbursement: "Dispersion de linea de credito"
 } as const;
 
 export default function IncomePage() {
@@ -29,7 +30,8 @@ export default function IncomePage() {
         { value: "cash_income", label: "Ingreso en efectivo" },
         { value: "invoice_exchange", label: "Intercambio de factura" },
         { value: "partner_loan_repayment", label: "Pago de prestamo de socio" },
-        { value: "employee_loan_repayment", label: "Pago de prestamo de empleado" }
+        { value: "employee_loan_repayment", label: "Pago de prestamo de empleado" },
+        { value: "credit_line_disbursement", label: "Dispersion de linea de credito" }
       ]}
       movementKindLabels={MOVEMENT_KIND_LABELS}
       amountToneClass="text-emerald-300"

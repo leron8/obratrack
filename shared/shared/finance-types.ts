@@ -23,7 +23,8 @@ export type MovementKind =
   | "bank_fee"
   | "tax_payment"
   | "internal_transfer"
-  | "adjustment";
+  | "adjustment"
+  | "credit_line_disbursement";
 
 export type PaymentMethod =
   | "cash"
@@ -45,6 +46,7 @@ export type AccountType =
   | "debit_card"
   | "fuel_card"
   | "loan"
+  | "credit_line"
   | "investment"
   | "clearing";
 
@@ -656,6 +658,28 @@ export type CashFlowRow = {
   total_out: number;
   net_change: number;
   closing_balance: number;
+};
+
+export type AccountMovementSummaryRow = {
+  account_id: string;
+  account_name: string;
+  account_type: AccountType;
+  currency: string;
+  opening_balance: number;
+  income_total: number;
+  expense_total: number;
+  project_expense_total: number;
+  current_balance: number;
+  movements: MovementResponse[];
+};
+
+export type AccountBalancesSummary = {
+  currency: string;
+  opening_total: number;
+  income_total: number;
+  expense_total: number;
+  current_total: number;
+  accounts: AccountMovementSummaryRow[];
 };
 
 export type SupplierCreditRow = {

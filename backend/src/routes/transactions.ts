@@ -16,7 +16,8 @@ import {
   updateAccount,
   deleteAccount,
   getAccount,
-  listFinancialAccounts
+  listFinancialAccounts,
+  getAccountBalancesSummary
 } from "../services/supabase";
 import { canCreateMovement, canUpdateOrDeleteMovement } from "../modules/auth/permissions";
 import { RequestError, getCurrentRole, getRequestDb, sendError } from "./http-helpers";
@@ -41,7 +42,8 @@ const MovementKindSchema = z.enum([
   "bank_fee",
   "tax_payment",
   "internal_transfer",
-  "adjustment"
+  "adjustment",
+  "credit_line_disbursement"
 ]);
 const PaymentMethodSchema = z.enum([
   "cash",
@@ -77,6 +79,7 @@ const AccountTypeSchema = z.enum([
   "debit_card",
   "fuel_card",
   "loan",
+  "credit_line",
   "investment",
   "clearing"
 ]);
@@ -92,7 +95,7 @@ const AccountCurrencySchema = z
 
 const AccountWriteSchema = z
   .object({
-    name: z.string().trim().min(1, "Account name is required.").max(180),
+    name: NullableStringSchema,
     account_type: AccountTypeSchema,
     bank_name: NullableStringSchema,
     account_number: NullableStringSchema,
@@ -109,7 +112,7 @@ const AccountWriteSchema = z
 
 const AccountUpdateSchema = z
   .object({
-    name: z.string().trim().min(1, "Account name is required.").max(180).optional(),
+    name: NullableStringSchema,
     account_type: AccountTypeSchema.optional(),
     bank_name: NullableStringSchema,
     account_number: NullableStringSchema,
@@ -124,6 +127,42 @@ const AccountUpdateSchema = z
   })
   .strip();
 
+const ACCOUNT_TYPE_LABEL: Record<string, string> = {
+  bank: "Cuenta bancaria",
+  cash: "Efectivo",
+  petty_cash: "Caja chica",
+  credit_card: "Tarjeta de credito",
+  debit_card: "Tarjeta de debito",
+  fuel_card: "Tarjeta de combustible",
+  loan: "Prestamo",
+  credit_line: "Linea de credito",
+  investment: "Inversion",
+  clearing: "Liquidacion"
+};
+
+/**
+ * Builds a deterministic display name for a financial account from its
+ * available data (bank, account type, last 4 digits), so the UI does not
+ * need to ask the user to invent a name. Falls back to the account type
+ * label when no other distinguishing data is present.
+ */
+function buildAccountName(payload: Record<string, unknown>): string {
+  const typeLabel = ACCOUNT_TYPE_LABEL[String(payload.account_type ?? "bank")] ?? "Cuenta";
+  const parts: string[] = [];
+
+  const bank = typeof payload.bank_name === "string" ? payload.bank_name.trim() : "";
+  if (bank) parts.push(bank);
+
+  parts.push(typeLabel);
+
+  const cardLast4 = typeof payload.card_last4 === "string" ? payload.card_last4.trim() : "";
+  const accountNumber = typeof payload.account_number === "string" ? payload.account_number.trim() : "";
+  const last4 = cardLast4 || (accountNumber ? accountNumber.slice(-4) : "");
+  if (last4) parts.push(`****${last4}`);
+
+  return parts.join(" · ");
+}
+
 function normalizeAccountPayload({
   payload,
   isUpdate = false
@@ -135,6 +174,12 @@ function normalizeAccountPayload({
   const normalized: Record<string, unknown> = Object.fromEntries(
     Object.entries(parsed).filter(([, value]) => value !== undefined)
   );
+
+  // Derive a display name from available data when creating, so the user
+  // does not need to provide one. On updates we preserve the existing name.
+  if (!isUpdate && (!normalized.name || !String(normalized.name).trim())) {
+    normalized.name = buildAccountName(payload);
+  }
 
   if (Object.keys(normalized).length === 0) {
     throw new RequestError(400, "No valid account fields provided.");
@@ -653,6 +698,17 @@ export function createTransactionsRouter({
     } catch (error) {
       console.error("list-accounts error:", error);
       return sendError(res, error, "Unable to list accounts.");
+    }
+  });
+
+  router.get("/accounts/balances", async (req, res) => {
+    try {
+      const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
+      const summary = await getAccountBalancesSummary({ db: getRequestDb(req, db), companyId });
+      return res.json(summary);
+    } catch (error) {
+      console.error("list-account-balances error:", error);
+      return sendError(res, error, "Unable to list account balances.");
     }
   });
 

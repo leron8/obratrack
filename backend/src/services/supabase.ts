@@ -1637,6 +1637,144 @@ export async function deleteAccount({
   if (error) throw error;
 }
 
+// ── Account movements balance summary ──────────────────────────────────
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function normalizeSummaryMovementRow(row: any): MovementResponse {
+  return {
+    id: row.id,
+    company_id: row.company_id,
+    account_id: row.account_id,
+    account_name: row.financial_accounts?.name ?? null,
+    movement_date: row.movement_date,
+    direction: row.direction,
+    movement_kind: row.movement_kind,
+    amount: Number(row.amount),
+    currency: row.currency,
+    payment_method: row.payment_method,
+    status: row.status,
+    business_partner_id: row.business_partner_id,
+    business_partner_name: row.business_partners?.name ?? null,
+    employee_id: row.employee_id,
+    employee_name: row.employees?.full_name ?? null,
+    project_id: row.project_id,
+    project_name: row.projects?.name ?? null,
+    vehicle_id: row.vehicle_id,
+    vehicle_plate: row.vehicles?.plate ?? null,
+    expense_category_id: row.expense_category_id,
+    expense_category_name: row.expense_categories?.name ?? null,
+    cost_center_id: row.cost_center_id,
+    description: row.description,
+    notes: row.notes,
+    is_internal_transfer: row.is_internal_transfer,
+    created_at: row.created_at
+  };
+}
+
+export async function getAccountBalancesSummary({
+  db,
+  companyId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+}): Promise<import("@expenses/shared").AccountBalancesSummary> {
+  const { data: accounts, error: accountsErr } = await db
+    .from("financial_accounts")
+    .select("id, name, account_type, currency, opening_balance")
+    .eq("company_id", companyId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .order("name");
+
+  if (accountsErr) throw accountsErr;
+
+  const accountRows = (accounts ?? []) as any[];
+  const accountIds = accountRows.map((a: any) => a.id);
+
+  let movements: any[] = [];
+  if (accountIds.length > 0) {
+    const { data, error } = await db
+      .from("account_movements")
+      .select(
+        "*, financial_accounts!account_id(name), business_partners!business_partner_id(name), employees!employee_id(full_name), projects!project_id(name), vehicles!vehicle_id(plate), expense_categories!expense_category_id(name)"
+      )
+      .eq("company_id", companyId)
+      .in("account_id", accountIds)
+      .is("deleted_at", null)
+      .neq("status", "voided")
+      .order("movement_date", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(5000);
+
+    if (error) throw error;
+    movements = (data ?? []) as any[];
+  }
+
+  const byAccount = new Map<string, MovementResponse[]>();
+  const incomeBy = new Map<string, number>();
+  const expenseBy = new Map<string, number>();
+  const projectExpenseBy = new Map<string, number>();
+
+  for (const raw of movements) {
+    const m = normalizeSummaryMovementRow(raw);
+    const list = byAccount.get(m.account_id) ?? [];
+    list.push(m);
+    byAccount.set(m.account_id, list);
+
+    const amt = m.amount;
+    if (m.direction === "in") {
+      incomeBy.set(m.account_id, (incomeBy.get(m.account_id) ?? 0) + amt);
+    } else {
+      expenseBy.set(m.account_id, (expenseBy.get(m.account_id) ?? 0) + amt);
+      if (m.project_id) {
+        projectExpenseBy.set(m.account_id, (projectExpenseBy.get(m.account_id) ?? 0) + amt);
+      }
+    }
+  }
+
+  let openingTotal = 0;
+  let incomeTotal = 0;
+  let expenseTotal = 0;
+
+  const resultAccounts = accountRows.map((acc: any) => {
+    const opening = Number(acc.opening_balance ?? 0);
+    const income = incomeBy.get(acc.id) ?? 0;
+    const expense = expenseBy.get(acc.id) ?? 0;
+    const current = opening + income - expense;
+
+    openingTotal += opening;
+    incomeTotal += income;
+    expenseTotal += expense;
+
+    return {
+      account_id: acc.id,
+      account_name: acc.name,
+      account_type: acc.account_type,
+      currency: acc.currency ?? "MXN",
+      opening_balance: round2(opening),
+      income_total: round2(income),
+      expense_total: round2(expense),
+      project_expense_total: round2(projectExpenseBy.get(acc.id) ?? 0),
+      current_balance: round2(current),
+      movements: byAccount.get(acc.id) ?? []
+    };
+  });
+
+  const currency = accountRows[0]?.currency ?? "MXN";
+
+  return {
+    currency,
+    opening_total: round2(openingTotal),
+    income_total: round2(incomeTotal),
+    expense_total: round2(expenseTotal),
+    current_total: round2(openingTotal + incomeTotal - expenseTotal),
+    accounts: resultAccounts
+  };
+}
+
 // ── Expenses categories (simple lookup) ───────────────────────────────
 
 export async function listExpenseCategories({

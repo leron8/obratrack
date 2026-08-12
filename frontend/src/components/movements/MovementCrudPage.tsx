@@ -607,18 +607,6 @@ export function MovementCrudPage({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Moneda</label>
-            <input
-              value={form.currency}
-              onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
-              placeholder="MXN"
-              maxLength={12}
-              className={inputClassName}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Cuenta</label>
             <select
               value={form.account_id}
