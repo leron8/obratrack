@@ -2,8 +2,9 @@
 
 import { useDeferredValue, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { MovementDirection, MovementKind, MovementResponse, ProjectResponse } from "@expenses/shared";
-import { Pencil, Plus, RefreshCcw, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import AppShell from "../AppShell";
+import { ExpandableSearch } from "../crud/ExpandableSearch";
 import { CrudTable, type CrudTableColumn } from "../crud/CrudTable";
 import { ConfirmDialog } from "../crud/ConfirmDialog";
 import { Card } from "../ui/Card";
@@ -16,8 +17,7 @@ import { useAuthorization } from "../../hooks/use-authorization";
 import {
   API_BASE_URL,
   fetchJson,
-  formatMoney,
-  getRoleLabel
+  formatMoney
 } from "../../lib/finance-demo";
 
 const PAGE_SIZE = 8;
@@ -74,6 +74,7 @@ const accentStyles: Record<
     accentBadge: string;
     accentPanel: string;
     focusRing: string;
+    searchRing: string;
   }
 > = {
   cyan: {
@@ -81,14 +82,16 @@ const accentStyles: Record<
     accentText: "text-cyan-300",
     accentBadge: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
     accentPanel: "from-cyan-500/12 via-cyan-500/5 to-slate-950",
-    focusRing: "focus:border-cyan-400 focus:ring-cyan-400/20"
+    focusRing: "focus:border-cyan-400 focus:ring-cyan-400/20",
+    searchRing: "focus-within:ring-cyan-400/20"
   },
   rose: {
     primaryButton: "bg-rose-500 text-white hover:bg-rose-400 disabled:hover:bg-rose-500",
     accentText: "text-rose-300",
     accentBadge: "border-rose-500/20 bg-rose-500/10 text-rose-200",
     accentPanel: "from-rose-500/14 via-rose-500/6 to-slate-950",
-    focusRing: "focus:border-rose-400 focus:ring-rose-400/20"
+    focusRing: "focus:border-rose-400 focus:ring-rose-400/20",
+    searchRing: "focus-within:ring-rose-400/20"
   }
 };
 
@@ -140,7 +143,7 @@ export function MovementCrudPage({
   amountToneClass
 }: MovementCrudPageProps) {
   const styles = accentStyles[accent];
-  const { activeCompany, activeRole } = useAuth();
+  const { activeCompany } = useAuth();
   const { isFinancialManager, canCreateMovement } = useAuthorization();
   const [movements, setMovements] = useState<MovementResponse[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
@@ -239,8 +242,6 @@ export function MovementCrudPage({
   );
 
   const displayCurrency = movements[0]?.currency ?? accounts[0]?.currency ?? form.currency;
-  const latestCreatedAt =
-    movements[0]?.created_at ? formatCreatedAt(movements[0].created_at) : "Sin actividad reciente";
   const canCreateRecords = canCreateMovement(direction);
   const canEditRecords = isFinancialManager;
   const readOnly = !canEditRecords;
@@ -444,7 +445,7 @@ export function MovementCrudPage({
           </Card>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid gap-4 xl:grid-cols-2">
           <KpiCard label={totalLabel} value={formatMoney(totalAmount, displayCurrency)} metric={totalHint} />
           <KpiCard
             label="Registros cargados"
@@ -455,68 +456,7 @@ export function MovementCrudPage({
                 : "Ultimos registros del backend listos para editar."
             }
           />
-          <Card className={cn("relative overflow-hidden bg-gradient-to-br", styles.accentPanel)}>
-            <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Estado del espacio</p>
-            <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(activeRole)}</p>
-            <p className="mt-2 text-sm text-slate-300">
-              {!canCreateRecords
-                ? "Tu rol actual no puede registrar movimientos en este módulo."
-                : readOnly
-                ? "El modo de solo lectura mantiene visible la tabla mientras bloquea las acciones de escritura."
-                : "Tu rol puede crear, editar y eliminar movimientos desde este flujo."}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className={cn("rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]", styles.accentBadge)}>
-                Actividad reciente
-              </span>
-              <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-300">
-                {latestCreatedAt}
-              </span>
-            </div>
-          </Card>
         </div>
-
-        <Card className="overflow-hidden p-0">
-          <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Buscar registros</label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Descripcion, notas, cuenta..."
-                  className={cn(inputClassName, "pl-11")}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-end">
-              <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} onClick={() => void load(companyId)}>
-                <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-                {loading ? "Cargando..." : "Actualizar"}
-              </Button>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                className={cn("h-[52px] w-full gap-2", styles.primaryButton)}
-                disabled={!canCreateRecords}
-                onClick={openCreateDialog}
-              >
-                <Plus className="h-4 w-4" />
-                {createLabel}
-              </Button>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-4 text-sm text-slate-400">
-            {companyId
-              ? `Empresa activa: ${activeCompany?.name ?? companyId}`
-              : "Selecciona una empresa desde el encabezado para cargar los registros mas recientes en la tabla."}
-          </div>
-        </Card>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -526,16 +466,44 @@ export function MovementCrudPage({
               <p className="mt-2 text-sm text-slate-400">
                 Edita o elimina cualquier fila directamente, con paginacion para mantener el flujo ligero.
               </p>
+              {companyId ? (
+                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">
+                  Selecciona una empresa desde el encabezado para cargar los registros mas recientes en la tabla.
+                </p>
+              )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <span className={cn("rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em]", styles.accentBadge)}>
-                {filteredMovements.length} visibles
-              </span>
-              {deferredSearch ? (
-                <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                  Busqueda: {search}
+            <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className={cn("rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em]", styles.accentBadge)}>
+                  {filteredMovements.length} visibles
                 </span>
-              ) : null}
+                {deferredSearch ? (
+                  <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
+                    Busqueda: {search}
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <div className="min-w-0 flex-1 sm:max-w-md">
+                  <ExpandableSearch
+                    value={search}
+                    onChange={setSearch}
+                    placeholder="Descripcion, notas, cuenta..."
+                    ariaLabel="Buscar registros"
+                    ringClassName={styles.searchRing}
+                  />
+                </div>
+                <Button variant="secondary" className="shrink-0 gap-2" disabled={loading} onClick={() => void load(companyId)}>
+                  <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+                  {loading ? "Cargando..." : "Actualizar"}
+                </Button>
+                <Button className={cn("shrink-0 gap-2", styles.primaryButton)} disabled={!canCreateRecords} onClick={openCreateDialog}>
+                  <Plus className="h-4 w-4" />
+                  {createLabel}
+                </Button>
+              </div>
             </div>
           </div>
 

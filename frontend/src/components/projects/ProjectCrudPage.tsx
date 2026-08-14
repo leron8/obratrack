@@ -2,8 +2,9 @@
 
 import { useDeferredValue, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { ProjectResponse, ProjectStatus } from "@expenses/shared";
-import { Pencil, Plus, RefreshCcw, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import AppShell from "../AppShell";
+import { ExpandableSearch } from "../crud/ExpandableSearch";
 import { CrudTable, type CrudTableColumn } from "../crud/CrudTable";
 import { ConfirmDialog } from "../crud/ConfirmDialog";
 import { Card } from "../ui/Card";
@@ -16,8 +17,7 @@ import { useAuthorization } from "../../hooks/use-authorization";
 import {
   API_BASE_URL,
   fetchJson,
-  formatMoney,
-  getRoleLabel
+  formatMoney
 } from "../../lib/finance-demo";
 
 const PAGE_SIZE = 8;
@@ -116,7 +116,7 @@ function getStatusBadgeClass(status: ProjectStatus) {
 }
 
 export function ProjectCrudPage() {
-  const { activeCompany, activeRole } = useAuth();
+  const { activeCompany } = useAuth();
   const { isFinancialManager } = useAuthorization();
   const companyId = activeCompany?.id ?? "";
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
@@ -221,8 +221,6 @@ export function ProjectCrudPage() {
     [projects]
   );
 
-  const latestUpdatedAt =
-    projects[0]?.updated_at ? formatDateTime(projects[0].updated_at) : "Sin actividad reciente";
   const readOnly = !isFinancialManager;
 
   function resetForm() {
@@ -426,7 +424,7 @@ export function ProjectCrudPage() {
           </Card>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid gap-4 xl:grid-cols-2">
           <KpiCard
             label="Obras activas"
             value={String(activeCount)}
@@ -436,67 +434,7 @@ export function ProjectCrudPage() {
             label="Presupuesto total"
             value={formatMoney(totalBudget, "MXN")}
             metric={`${projects.length} obras cargadas desde el backend.`}
-          />
-          <Card className="relative overflow-hidden bg-gradient-to-br from-cyan-500/12 via-cyan-500/5 to-slate-950">
-            <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Estado del espacio</p>
-            <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(activeRole)}</p>
-            <p className="mt-2 text-sm text-slate-300">
-              {readOnly
-                ? "El modo de solo lectura mantiene visible el catalogo mientras bloquea las acciones de escritura."
-                : "El modo administrador deja la creacion, edicion y eliminacion de obras a un clic."}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                Ultima actualizacion
-              </span>
-              <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-300">
-                {latestUpdatedAt}
-              </span>
-            </div>
-          </Card>
-        </div>
-
-        <Card className="overflow-hidden p-0">
-          <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Buscar obras</label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Nombre, cliente, codigo..."
-                  className={cn(inputClassName, "pl-11")}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-end">
-              <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} onClick={() => void load(companyId)}>
-                <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-                {loading ? "Cargando..." : "Actualizar"}
-              </Button>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                className="h-[52px] w-full gap-2 bg-cyan-400 text-slate-950 hover:bg-cyan-300 disabled:hover:bg-cyan-400"
-                disabled={readOnly}
-                onClick={openCreateDialog}
-              >
-                <Plus className="h-4 w-4" />
-                Agregar obra
-              </Button>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-4 text-sm text-slate-400">
-            {companyId
-              ? `Empresa activa: ${activeCompany?.name ?? companyId}`
-              : "Selecciona una empresa desde el encabezado para cargar las obras mas recientes en la tabla."}
-          </div>
-        </Card>
+          />        </div>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -506,16 +444,48 @@ export function ProjectCrudPage() {
               <p className="mt-2 text-sm text-slate-400">
                 Revisa el estado de cada obra y entra a editar o eliminar sin salir de la tabla.
               </p>
+              {companyId ? (
+                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">
+                  Selecciona una empresa desde el encabezado para cargar las obras mas recientes en la tabla.
+                </p>
+              )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                {filteredProjects.length} visibles
-              </span>
-              {deferredSearch ? (
-                <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                  Busqueda: {search}
+            <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
+                  {filteredProjects.length} visibles
                 </span>
-              ) : null}
+                {deferredSearch ? (
+                  <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
+                    Busqueda: {search}
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <div className="min-w-0 flex-1 sm:max-w-md">
+                  <ExpandableSearch
+                    value={search}
+                    onChange={setSearch}
+                    placeholder="Nombre, cliente, codigo..."
+                    ariaLabel="Buscar obras"
+                    ringClassName="focus-within:ring-cyan-400/20"
+                  />
+                </div>
+                <Button variant="secondary" className="shrink-0 gap-2" disabled={loading} onClick={() => void load(companyId)}>
+                  <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+                  {loading ? "Cargando..." : "Actualizar"}
+                </Button>
+                <Button
+                  className="shrink-0 gap-2 bg-cyan-400 text-slate-950 hover:bg-cyan-300 disabled:hover:bg-cyan-400"
+                  disabled={readOnly}
+                  onClick={openCreateDialog}
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar obra
+                </Button>
+              </div>
             </div>
           </div>
 

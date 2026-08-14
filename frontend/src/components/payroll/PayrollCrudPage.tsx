@@ -12,6 +12,7 @@ import type {
 } from "@expenses/shared";
 import { CalendarRange, Pencil, Plus, RefreshCcw, Search, Trash2, WalletCards } from "lucide-react";
 import AppShell from "../AppShell";
+import { ExpandableSearch } from "../crud/ExpandableSearch";
 import { CrudTable, type CrudTableColumn } from "../crud/CrudTable";
 import { ConfirmDialog } from "../crud/ConfirmDialog";
 import { Card } from "../ui/Card";
@@ -24,8 +25,7 @@ import { useAuthorization } from "../../hooks/use-authorization";
 import {
   API_BASE_URL,
   fetchJson,
-  formatMoney,
-  getRoleLabel
+  formatMoney
 } from "../../lib/finance-demo";
 
 const PAGE_SIZE = 8;
@@ -144,7 +144,7 @@ function getStatusBadgeClass(status: PayrollStatus) {
 }
 
 export function PayrollCrudPage() {
-  const { activeCompany, activeRole } = useAuth();
+  const { activeCompany } = useAuth();
   const { isFinancialManager } = useAuthorization();
   const companyId = activeCompany?.id ?? "";
   const [runs, setRuns] = useState<PayrollRun[]>([]);
@@ -310,11 +310,6 @@ export function PayrollCrudPage() {
   const selectedRunOther =
     selectedRun?.other_deductions_total ?? lines.reduce((sum, line) => sum + Number(line.other_deduction_amount ?? 0), 0);
   const selectedRunNet = selectedRun?.net_total ?? lines.reduce((sum, line) => sum + Number(line.net_amount ?? 0), 0);
-  const latestRunUpdate = selectedRun?.updated_at
-    ? formatDateTime(selectedRun.updated_at)
-    : runs[0]?.updated_at
-      ? formatDateTime(runs[0].updated_at)
-      : "Sin actividad reciente";
   const readOnly = !isFinancialManager;
 
   function resetRunForm() {
@@ -629,7 +624,7 @@ export function PayrollCrudPage() {
           </Card>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid gap-4 xl:grid-cols-2">
           <KpiCard
             label="Corridas registradas"
             value={String(runs.length)}
@@ -644,77 +639,48 @@ export function PayrollCrudPage() {
                 : "Selecciona una corrida para ver su total neto."
             }
           />
-          <Card className="relative overflow-hidden bg-gradient-to-br from-cyan-500/12 via-cyan-500/5 to-slate-950">
-            <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Estado del espacio</p>
-            <p className="mt-3 text-2xl font-semibold text-white">{getRoleLabel(activeRole)}</p>
-            <p className="mt-2 text-sm text-slate-300">
-              {readOnly
-                ? "Puedes revisar corridas y lineas sin tocar los datos capturados."
-                : "Puedes capturar corridas de nomina, ajustar lineas y limpiar registros sin salir de esta vista."}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                Ultima actualizacion
-              </span>
-              <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs text-slate-300">
-                {latestRunUpdate}
-              </span>
-            </div>
-          </Card>
         </div>
-
-        <Card className="overflow-hidden p-0">
-          <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Buscar corridas</label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={runSearch}
-                  onChange={(event) => setRunSearch(event.target.value)}
-                  placeholder="Nomina 01, semana 12, pagada..."
-                  className={cn(inputClassName, "pl-11")}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-end">
-              <Button variant="secondary" className="h-[52px] w-full gap-2" disabled={loading} onClick={() => void load(companyId, selectedRunId)}>
-                <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-                {loading ? "Cargando..." : "Actualizar"}
-              </Button>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                className="h-[52px] w-full gap-2 bg-cyan-400 text-slate-950 hover:bg-cyan-300 disabled:hover:bg-cyan-400"
-                disabled={readOnly}
-                onClick={openCreateRunDialog}
-              >
-                <Plus className="h-4 w-4" />
-                Nueva corrida
-              </Button>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-800 bg-slate-950/60 px-6 py-4 text-sm text-slate-400">
-            {companyId
-              ? `Empresa activa: ${activeCompany?.name ?? companyId}`
-              : "Selecciona una empresa desde el encabezado para cargar las corridas y lineas de nomina."}
-          </div>
-        </Card>
 
         <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <Card className="p-5">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Corridas semanales</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Lista de nominas</h2>
+            <div className="mb-4 flex flex-col gap-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Corridas semanales</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Lista de nominas</h2>
+                </div>
+                <span className="shrink-0 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
+                  {filteredRuns.length} visibles
+                </span>
               </div>
-              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                {filteredRuns.length} visibles
-              </span>
+              <div className="flex flex-col gap-2">
+                <ExpandableSearch
+                  value={runSearch}
+                  onChange={setRunSearch}
+                  placeholder="Nomina 01, semana 12, pagada..."
+                  ariaLabel="Buscar corridas"
+                  ringClassName="focus-within:ring-cyan-400/20"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" className="gap-2" disabled={loading} onClick={() => void load(companyId, selectedRunId)}>
+                    <RefreshCcw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+                    {loading ? "Cargando..." : "Actualizar"}
+                  </Button>
+                  <Button
+                    className="gap-2 bg-cyan-400 text-slate-950 hover:bg-cyan-300 disabled:hover:bg-cyan-400"
+                    disabled={readOnly}
+                    onClick={openCreateRunDialog}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Nueva corrida
+                  </Button>
+                </div>
+              </div>
+              {companyId ? (
+                <p className="text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
+              ) : (
+                <p className="text-xs text-slate-500">Selecciona una empresa en el encabezado para cargar las corridas.</p>
+              )}
             </div>
 
             <div className="space-y-3">
