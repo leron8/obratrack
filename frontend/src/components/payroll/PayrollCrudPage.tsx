@@ -20,6 +20,7 @@ import { Dialog } from "../ui/Dialog";
 import { KpiCard } from "../ui/KpiCard";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { DateInput } from "../ui/DateInput";
 import { useAuth } from "../../hooks/use-auth";
 import { useAuthorization } from "../../hooks/use-authorization";
 import {
@@ -896,21 +897,19 @@ export function PayrollCrudPage() {
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Inicio del periodo</label>
-            <input
-              type="date"
+            <DateInput
               value={runForm.period_start}
-              onChange={(event) => setRunForm((current) => ({ ...current, period_start: event.target.value }))}
-              className={inputClassName}
+              onChange={(value) => setRunForm((current) => ({ ...current, period_start: value }))}
+              placeholder="DD/MM/AAAA"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Fin del periodo</label>
-            <input
-              type="date"
+            <DateInput
               value={runForm.period_end}
-              onChange={(event) => setRunForm((current) => ({ ...current, period_end: event.target.value }))}
-              className={inputClassName}
+              onChange={(value) => setRunForm((current) => ({ ...current, period_end: value }))}
+              placeholder="DD/MM/AAAA"
             />
           </div>
 

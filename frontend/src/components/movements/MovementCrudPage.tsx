@@ -12,6 +12,8 @@ import { Dialog } from "../ui/Dialog";
 import { KpiCard } from "../ui/KpiCard";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { MoneyInput } from "../ui/MoneyInput";
+import { DateInput } from "../ui/DateInput";
 import { useAuth } from "../../hooks/use-auth";
 import { useAuthorization } from "../../hooks/use-authorization";
 import {
@@ -551,25 +553,20 @@ export function MovementCrudPage({
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Fecha del movimiento</label>
-            <input
-              type="date"
+            <DateInput
               value={form.movement_date}
-              onChange={(event) => setForm((current) => ({ ...current, movement_date: event.target.value }))}
-              className={inputClassName}
+              onChange={(value) => setForm((current) => ({ ...current, movement_date: value }))}
+              placeholder="DD/MM/AAAA"
               required
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Monto</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <MoneyInput
               value={form.amount}
-              onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+              onChange={(value) => setForm((current) => ({ ...current, amount: value }))}
               placeholder="0.00"
-              className={inputClassName}
               required
             />
           </div>

@@ -624,6 +624,22 @@ export async function getProject({
   );
 }
 
+export async function peekNextProjectCode({
+  db,
+  companyId
+}: {
+  db: SupabaseClient;
+  companyId: string;
+}): Promise<string | null> {
+  const { data, error } = await db.rpc("next_project_code", {
+    p_company_id: companyId
+  });
+
+  if (error) throw error;
+  const code = Array.isArray(data) ? (data[0] as string | undefined) : (data as string | null | undefined);
+  return code ?? null;
+}
+
 export async function createProject({
   db,
   companyId,
@@ -633,18 +649,30 @@ export async function createProject({
   companyId: string;
   payload: Record<string, unknown>;
 }): Promise<ProjectResponse> {
-  const { data, error } = await db
-    .from("projects")
-    .insert({ ...payload, company_id: companyId })
-    .select("*, business_partners!client_id(name)")
-    .single();
+  // The code is generated atomically inside `create_project` (RPC) using the
+  // company timezone and an advisory lock, so concurrent creates never clash.
+  // Any client-provided `code` is intentionally ignored.
+  const { data, error } = await db.rpc("create_project", {
+    p_company_id: companyId,
+    p_name: payload.name,
+    p_client_id: payload.client_id ?? null,
+    p_description: payload.description ?? null,
+    p_status: payload.status ?? "active",
+    p_budget: payload.budget ?? 0,
+    p_start_date: payload.start_date ?? null,
+    p_estimated_end_date: payload.estimated_end_date ?? null,
+    p_completed_at: payload.completed_at ?? null,
+    p_address: payload.address ?? null
+  });
 
   if (error) throw error;
-  return normalizeProjectRow(
-    data as ProjectRow & {
-      business_partners?: { name?: string | null } | null;
-    }
-  );
+
+  const row = Array.isArray(data) ? (data[0] as ProjectRow | undefined) : (data as ProjectRow | undefined);
+  if (!row) {
+    throw new Error("Project creation returned no row.");
+  }
+
+  return normalizeProjectRow(row);
 }
 
 export async function updateProject({

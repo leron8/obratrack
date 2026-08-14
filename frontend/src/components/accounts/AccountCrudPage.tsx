@@ -13,6 +13,8 @@ import { Dialog } from "../ui/Dialog";
 import { KpiCard } from "../ui/KpiCard";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { MoneyInput } from "../ui/MoneyInput";
+import { DateInput } from "../ui/DateInput";
 import { useAuth } from "../../hooks/use-auth";
 import { useAuthorization } from "../../hooks/use-authorization";
 import { API_BASE_URL, fetchJson, formatMoney } from "../../lib/finance-demo";
@@ -621,39 +623,28 @@ return (
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Saldo inicial</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <MoneyInput
               value={form.opening_balance}
-              onChange={(event) => setForm((current) => ({ ...current, opening_balance: event.target.value }))}
+              onChange={(value) => setForm((current) => ({ ...current, opening_balance: value }))}
               placeholder="0.00"
-              className={inputClassName}
             />
           </div>
 
-
-
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Fecha saldo inicial</label>
-            <input
-              type="date"
+            <DateInput
               value={form.opening_balance_date}
-              onChange={(event) => setForm((current) => ({ ...current, opening_balance_date: event.target.value }))}
-              className={inputClassName}
+              onChange={(value) => setForm((current) => ({ ...current, opening_balance_date: value }))}
+              placeholder="DD/MM/AAAA"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Limite de credito</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <MoneyInput
               value={form.credit_limit}
-              onChange={(event) => setForm((current) => ({ ...current, credit_limit: event.target.value }))}
+              onChange={(value) => setForm((current) => ({ ...current, credit_limit: value }))}
               placeholder="0.00"
-              className={inputClassName}
             />
           </div>
 

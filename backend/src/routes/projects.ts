@@ -6,6 +6,7 @@ import {
   deleteProject,
   getProject,
   listProjects,
+  peekNextProjectCode,
   updateProject
 } from "../services/supabase";
 import type { Env } from "../env";
@@ -32,7 +33,6 @@ const NullableDateSchema = z.preprocess(
 const ProjectWriteSchema = z
   .object({
     client_id: NullableUuidSchema,
-    code: NullableStringSchema,
     name: z.string().trim().min(1, "Project name is required.").max(180),
     description: NullableStringSchema,
     status: ProjectStatusSchema.optional().default("active"),
@@ -47,7 +47,6 @@ const ProjectWriteSchema = z
 const ProjectUpdateSchema = z
   .object({
     client_id: NullableUuidSchema,
-    code: NullableStringSchema,
     name: z.string().trim().min(1, "Project name is required.").max(180).optional(),
     description: NullableStringSchema,
     status: ProjectStatusSchema.optional(),
@@ -115,6 +114,22 @@ export function createProjectsRouter({
     } catch (error) {
       console.error("list-projects error:", error);
       return sendError(res, error, "Unable to list projects.");
+    }
+  });
+
+  // Declared before /projects/:id so "next-code" is not captured as an id.
+  router.get("/projects/next-code", async (req, res) => {
+    try {
+      const companyId = req.companyId ?? env.DEFAULT_COMPANY_ID;
+      const code = await peekNextProjectCode({
+        db: getRequestDb(req, db),
+        companyId
+      });
+
+      return res.json({ code });
+    } catch (error) {
+      console.error("next-project-code error:", error);
+      return sendError(res, error, "Unable to generate project code.");
     }
   });
 

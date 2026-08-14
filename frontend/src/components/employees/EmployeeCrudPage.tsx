@@ -12,6 +12,8 @@ import { Dialog } from "../ui/Dialog";
 import { KpiCard } from "../ui/KpiCard";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { MoneyInput } from "../ui/MoneyInput";
+import { DateInput } from "../ui/DateInput";
 import { useAuth } from "../../hooks/use-auth";
 import { useAuthorization } from "../../hooks/use-authorization";
 import {
@@ -654,52 +656,42 @@ export function EmployeeCrudPage() {
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Sueldo diario</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <MoneyInput
               value={form.default_daily_rate}
-              onChange={(event) => setForm((current) => ({ ...current, default_daily_rate: event.target.value }))}
+              onChange={(value) => setForm((current) => ({ ...current, default_daily_rate: value }))}
               placeholder="0.00"
-              className={inputClassName}
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Sueldo semanal</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <MoneyInput
               value={form.default_weekly_salary}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, default_weekly_salary: event.target.value }))
+              onChange={(value) =>
+                setForm((current) => ({ ...current, default_weekly_salary: value }))
               }
               placeholder="0.00"
-              className={inputClassName}
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Fecha de alta</label>
-            <input
-              type="date"
+            <DateInput
               value={form.hire_date}
-              onChange={(event) => setForm((current) => ({ ...current, hire_date: event.target.value }))}
-              className={inputClassName}
+              onChange={(value) => setForm((current) => ({ ...current, hire_date: value }))}
+              placeholder="DD/MM/AAAA"
             />
           </div>
 
           {form.status === "terminated" ? (
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Fecha de baja</label>
-              <input
-                type="date"
+              <DateInput
                 value={form.termination_date}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, termination_date: event.target.value }))
+                onChange={(value) =>
+                  setForm((current) => ({ ...current, termination_date: value }))
                 }
-                className={inputClassName}
+                placeholder="DD/MM/AAAA"
               />
             </div>
           ) : null}

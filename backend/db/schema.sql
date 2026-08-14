@@ -240,6 +240,267 @@ CREATE TABLE public.projects (
   UNIQUE (company_id, code)
 );
 
+-- ============================================================================
+-- Function: public.project_code_identifier(p_name text)
+-- Generates the XXXX mnemonic fragment (1-4 chars) from the obra name.
+-- Algorithm:
+--   1. Uppercase and clean the name (remove accents, keep letters/spaces)
+--   2. Remove Spanish stopwords: DE, DEL, LA, LAS, EL, LOS, Y, EN, PARA, POR,
+--      CON, UN, UNA, AL, A
+--   3. Take the first letter of each remaining significant word
+--   4. If fewer than 4 letters, take additional letters from significant words
+--      in reverse order, starting from position 2 onward
+--   5. Result is 1-4 characters (fewer than 4 is acceptable if not enough words)
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.project_code_identifier(p_name text)
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_upper text;
+  v_clean text;
+  v_stopwords text[] := ARRAY['DE', 'DEL', 'LA', 'LAS', 'EL', 'LOS', 'Y', 'EN', 'PARA', 'POR', 'CON', 'UN', 'UNA', 'AL', 'A'];
+  v_words text[];
+  v_significant text[];
+  v_initials text := '';
+  v_need integer;
+  v_i integer;
+  v_word text;
+  v_len integer;
+  v_pos integer;
+BEGIN
+  -- 1. Normalize: uppercase, remove accents, keep only letters and spaces
+  v_upper := upper(p_name);
+  v_upper := regexp_replace(v_upper, 'Á', 'A', 'g');
+  v_upper := regexp_replace(v_upper, 'É', 'E', 'g');
+  v_upper := regexp_replace(v_upper, 'Í', 'I', 'g');
+  v_upper := regexp_replace(v_upper, 'Ó', 'O', 'g');
+  v_upper := regexp_replace(v_upper, 'Ú', 'U', 'g');
+  v_upper := regexp_replace(v_upper, 'Ñ', 'N', 'g');
+  v_clean := regexp_replace(v_upper, '[^A-Z\s]', '', 'g');
+  v_clean := regexp_replace(v_clean, '\s+', ' ', 'g');
+  v_clean := trim(v_clean);
+
+  -- 2. Split into words and remove stopwords
+  v_words := string_to_array(v_clean, ' ');
+  v_significant := ARRAY[];
+  FOREACH v_word IN ARRAY v_words LOOP
+    IF NOT (v_word = ANY(v_stopwords)) THEN
+      v_significant := v_significant || v_word;
+    END IF;
+  END LOOP;
+
+  -- 3. Take the first letter of each significant word
+  FOREACH v_word IN ARRAY v_significant LOOP
+    EXIT WHEN length(v_initials) >= 4;
+    v_initials := v_initials || left(v_word, 1);
+  END LOOP;
+
+  -- 4. If still need more chars, take from significant words in reverse order
+  v_need := 4 - length(v_initials);
+  IF v_need > 0 AND array_length(v_significant, 1) > 0 THEN
+    FOR v_i IN REVERSE 1..array_length(v_significant, 1) LOOP
+      v_word := v_significant[v_i];
+      v_len := length(v_word);
+      FOR v_pos IN 2..v_len LOOP
+        EXIT WHEN length(v_initials) >= 4;
+        v_initials := v_initials || substr(v_word, v_pos, 1);
+      END LOOP;
+      EXIT WHEN length(v_initials) >= 4;
+    END LOOP;
+  END IF;
+
+  -- 5. Trim to max 4 characters
+  v_initials := left(v_initials, 4);
+
+  RETURN v_initials;
+END;
+$$;
+
+-- ============================================================================
+-- Function: public.next_project_code(p_company_id uuid)
+-- Generates the next available "OBR-XXXX-YYYY-NNN" code.
+-- - Year is resolved using the company timezone.
+-- - Consecutive is computed across ALL codes for the year (prefix doesn't matter).
+-- - Lock ensures concurrency safety.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.next_project_code(p_company_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_year integer;
+  v_timezone text;
+  v_max_seq integer;
+  v_next_seq integer;
+BEGIN
+  SELECT COALESCE(NULLIF(timezone, ''), 'America/Mexico_City')
+    INTO v_timezone
+    FROM public.companies
+    WHERE id = p_company_id;
+
+  v_timezone := COALESCE(v_timezone, 'America/Mexico_City');
+  v_year := EXTRACT(YEAR FROM (now() AT TIME ZONE v_timezone))::integer;
+
+  -- Serialize concurrent computations for the same company + year.
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_company_id::text || ':' || v_year, 0));
+
+  -- Max consecutive across ALL codes for this year (the XXXX prefix doesn't affect uniqueness)
+  SELECT COALESCE(MAX(
+    (regexp_replace(code, '^OBR-[A-Z0-9-]+-[0-9]+-', ''))::integer), 0)
+    INTO v_max_seq
+    FROM public.projects
+    WHERE company_id = p_company_id
+      AND deleted_at IS NULL;
+
+  v_next_seq := v_max_seq + 1;
+
+  RETURN 'OBR-XXX-' || v_year || '-' || lpad(v_next_seq::text, 3, '0');
+END;
+$$;
+
+-- ============================================================================
+-- Function: public.create_project(...)
+-- Atomically generates the full OBR-XXXX-YYYY-NNN code and inserts the row.
+-- - XXXX is generated from p_name using project_code_identifier()
+-- - Year uses company timezone
+-- - Consecutive is global per year, not per XXXX prefix
+-- - The advisory lock ensures concurrency safety
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.create_project(
+  p_company_id uuid,
+  p_name text,
+  p_client_id uuid DEFAULT NULL,
+  p_description text DEFAULT NULL,
+  p_status public.project_status DEFAULT 'active',
+  p_budget numeric DEFAULT 0,
+  p_start_date date DEFAULT NULL,
+  p_estimated_end_date date DEFAULT NULL,
+  p_completed_at date DEFAULT NULL,
+  p_address text DEFAULT NULL
+)
+RETURNS TABLE (
+  id uuid,
+  company_id uuid,
+  client_id uuid,
+  code text,
+  name text,
+  description text,
+  status public.project_status,
+  budget numeric,
+  start_date date,
+  estimated_end_date date,
+  completed_at date,
+  address text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_code text;
+  v_year integer;
+  v_timezone text;
+  v_max_seq integer;
+  v_next_seq integer;
+  v_identifier text;
+  v_row_id uuid;
+  v_row_company_id uuid;
+  v_row_client_id uuid;
+  v_row_code text;
+  v_row_name text;
+  v_row_description text;
+  v_row_status public.project_status;
+  v_row_budget numeric;
+  v_row_start_date date;
+  v_row_estimated_end_date date;
+  v_row_completed_at date;
+  v_row_address text;
+  v_row_created_at timestamptz;
+  v_row_updated_at timestamptz;
+BEGIN
+  -- Resolve timezone and year
+  SELECT COALESCE(NULLIF(timezone, ''), 'America/Mexico_City')
+    INTO v_timezone
+    FROM public.companies
+    WHERE id = p_company_id;
+  v_timezone := COALESCE(v_timezone, 'America/Mexico_City');
+  v_year := EXTRACT(YEAR FROM (now() AT TIME ZONE v_timezone))::integer;
+
+  -- Serialize concurrent computations for the same company + year.
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_company_id::text || ':' || v_year, 0));
+
+  -- Compute the mnemonic identifier from the name
+  v_identifier := public.project_code_identifier(p_name);
+
+  -- Compute the next consecutive number across ALL codes for this year.
+  SELECT COALESCE(MAX(
+    (regexp_replace(code, '^OBR-[A-Z0-9-]+-[0-9]+-', ''))::integer), 0)
+    INTO v_max_seq
+    FROM public.projects
+    WHERE company_id = p_company_id
+      AND deleted_at IS NULL;
+
+  v_next_seq := v_max_seq + 1;
+
+  -- Build the full code: OBR-XXXX-YYYY-NNN
+  v_code := 'OBR-' || v_identifier || '-' || v_year || '-' || lpad(v_next_seq::text, 3, '0');
+
+  -- Insert the project with the generated code
+  INSERT INTO public.projects (
+    company_id,
+    client_id,
+    code,
+    name,
+    description,
+    status,
+    budget,
+    start_date,
+    estimated_end_date,
+    completed_at,
+    address
+  )
+  VALUES (
+    p_company_id,
+    p_client_id,
+    v_code,
+    p_name,
+    p_description,
+    p_status,
+    p_budget,
+    p_start_date,
+    p_estimated_end_date,
+    p_completed_at,
+    p_address
+  )
+  RETURNING id, company_id, client_id, code, name, description, status, budget, start_date, estimated_end_date, completed_at, address, created_at, updated_at
+  INTO v_row_id, v_row_company_id, v_row_client_id, v_row_code, v_row_name, v_row_description, v_row_status, v_row_budget, v_row_start_date, v_row_estimated_end_date, v_row_completed_at, v_row_address, v_row_created_at, v_row_updated_at;
+
+  RETURN QUERY
+    SELECT
+      v_row_id,
+      v_row_company_id,
+      v_row_client_id,
+      v_row_code,
+      v_row_name,
+      v_row_description,
+      v_row_status,
+      v_row_budget,
+      v_row_start_date,
+      v_row_estimated_end_date,
+      v_row_completed_at,
+      v_row_address,
+      v_row_created_at,
+      v_row_updated_at;
+END;
+$$;
+
+
 CREATE TABLE public.project_aliases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

@@ -12,6 +12,8 @@ import { Dialog } from "../ui/Dialog";
 import { KpiCard } from "../ui/KpiCard";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/utils";
+import { MoneyInput } from "../ui/MoneyInput";
+import { DateInput } from "../ui/DateInput";
 import { useAuth } from "../../hooks/use-auth";
 import { useAuthorization } from "../../hooks/use-authorization";
 import {
@@ -234,10 +236,24 @@ export function ProjectCrudPage() {
     resetForm();
   }
 
-  function openCreateDialog() {
+  async function openCreateDialog() {
     setEditingItem(null);
     resetForm();
     setIsFormOpen(true);
+
+    if (!companyId) return;
+
+    // Show the code that will be assigned. It is only a preview; the
+    // authoritative value is generated atomically on the backend when saving.
+    try {
+      const data = await fetchJson(
+        `${API_BASE_URL}/projects/next-code?company_id=${encodeURIComponent(companyId)}`
+      );
+      const nextCode = typeof data?.code === "string" ? data.code : "";
+      setForm((current) => ({ ...current, code: nextCode }));
+    } catch {
+      // Keep the field empty; the backend will still assign a code on save.
+    }
   }
 
   function openEditDialog(item: ProjectResponse) {
@@ -270,7 +286,6 @@ export function ProjectCrudPage() {
 
     try {
       const payload = {
-        code: form.code.trim() || null,
         name: form.name.trim(),
         description: form.description.trim() || null,
         client_id: form.client_id || null,
@@ -541,9 +556,10 @@ export function ProjectCrudPage() {
             <label className="text-sm font-medium text-slate-300">Codigo</label>
             <input
               value={form.code}
-              onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
-              placeholder="OBR-2026-001"
-              className={inputClassName}
+              readOnly
+              placeholder="Se generara automaticamente"
+              title="El codigo se genera automaticamente y no puede editarse"
+              className={cn(inputClassName, "cursor-not-allowed text-slate-400")}
             />
           </div>
 
@@ -592,47 +608,40 @@ export function ProjectCrudPage() {
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Presupuesto</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <MoneyInput
               value={form.budget}
-              onChange={(event) => setForm((current) => ({ ...current, budget: event.target.value }))}
+              onChange={(value) => setForm((current) => ({ ...current, budget: value }))}
               placeholder="0.00"
-              className={inputClassName}
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Fecha de inicio</label>
-            <input
-              type="date"
+            <DateInput
               value={form.start_date}
-              onChange={(event) => setForm((current) => ({ ...current, start_date: event.target.value }))}
-              className={inputClassName}
+              onChange={(value) => setForm((current) => ({ ...current, start_date: value }))}
+              placeholder="DD/MM/AAAA"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300">Fecha estimada de cierre</label>
-            <input
-              type="date"
+            <DateInput
               value={form.estimated_end_date}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, estimated_end_date: event.target.value }))
+              onChange={(value) =>
+                setForm((current) => ({ ...current, estimated_end_date: value }))
               }
-              className={inputClassName}
+              placeholder="DD/MM/AAAA"
             />
           </div>
 
           {form.status === "completed" ? (
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Fecha de termino</label>
-              <input
-                type="date"
+              <DateInput
                 value={form.completed_at}
-                onChange={(event) => setForm((current) => ({ ...current, completed_at: event.target.value }))}
-                className={inputClassName}
+                onChange={(value) => setForm((current) => ({ ...current, completed_at: value }))}
+                placeholder="DD/MM/AAAA"
               />
             </div>
           ) : null}

@@ -18,6 +18,7 @@ import AppShell from "../../components/AppShell";
 import { Card } from "../../components/ui/Card";
 import { KpiCard } from "../../components/ui/KpiCard";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { DateInput } from "../../components/ui/DateInput";
 import { useAuth } from "../../hooks/use-auth";
 import { fetchJson } from "../../lib/finance-demo";
 
@@ -241,19 +242,19 @@ export default function ReportsPage() {
           </div>
           <div className="space-y-1">
             <p className="text-xs text-slate-400">Desde</p>
-            <input
-              type="date"
+            <DateInput
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(value) => setStartDate(value)}
+              placeholder="DD/MM/AAAA"
               className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-100 outline-none transition focus:border-cyan-400"
             />
           </div>
           <div className="space-y-1">
             <p className="text-xs text-slate-400">Hasta</p>
-            <input
-              type="date"
+            <DateInput
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(value) => setEndDate(value)}
+              placeholder="DD/MM/AAAA"
               className="w-full rounded-3xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm text-slate-100 outline-none transition focus:border-cyan-400"
             />
           </div>
