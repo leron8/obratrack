@@ -435,9 +435,9 @@ export function EmployeeCrudPage() {
 
   return (
     <AppShell
-      eyebrow="Empleados"
-      title="Catalogo de empleados"
-      description="Administra el padron del personal con el mismo flujo de alta, edicion y baja logica que ya usamos en obras e ingresos."
+      eyebrow=""
+      title="EMPLEADOS"
+      description=""
     >
       <div className="space-y-6">
         {error ? (
@@ -455,25 +455,14 @@ export function EmployeeCrudPage() {
           <KpiCard
             label="Base semanal"
             value={formatMoney(totalWeeklyBase, "MXN")}
-            metric={`${employees.length} personas cargadas desde el backend.`}
+            metric=""
           />
         </div>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Plantilla registrada</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Catalogo de empleados</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Revisa el estado, la base de pago y los datos de contacto de cada persona sin salir de la tabla.
-              </p>
-              {companyId ? (
-                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">
-                  Selecciona una empresa desde el encabezado para cargar la plantilla en la tabla.
-                </p>
-              )}
+              <h2 className="mt-2 text-xl font-semibold text-white">Catálogo de empleados</h2>
             </div>
             <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
               <div className="flex flex-wrap justify-end gap-2">
@@ -482,7 +471,7 @@ export function EmployeeCrudPage() {
                 </span>
                 {deferredSearch ? (
                   <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                    Busqueda: {search}
+                    Búsqueda: {search}
                   </span>
                 ) : null}
               </div>

@@ -406,9 +406,9 @@ export function AccountCrudPage() {
 
 return (
     <AppShell
-      eyebrow="Cuentas"
-      title="Catalogo de cuentas"
-      description="Administra las cuentas bancarias, tarjetas y fondos de efectivo que se usan como destino en los registros de ingresos y egresos."
+      eyebrow=""
+      title="CUENTAS"
+      description=""
     >
       <div className="space-y-6">
         {error ? (
@@ -421,29 +421,18 @@ return (
           <KpiCard
             label="Cuentas activas"
             value={String(activeCount)}
-            metric={`${accounts.length} cuentas cargadas desde el backend.`}
+            metric=""
           />
           <KpiCard
             label="Saldo inicial total"
             value={formatMoney(totalOpeningBalance, displayCurrency)}
-            metric={"Suma de los saldos iniciales de todas las cuentas."}
+            metric=""
           />        </div>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Cuentas registradas</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Catalogo de cuentas</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Revisa el estado de cada cuenta y entra a editar o eliminar sin salir de la tabla.
-              </p>
-              {companyId ? (
-                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">
-                  Selecciona una empresa desde el encabezado para cargar las cuentas en la tabla.
-                </p>
-              )}
             </div>
             <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
               <div className="flex flex-wrap justify-end gap-2">
@@ -452,7 +441,7 @@ return (
                 </span>
                 {deferredSearch ? (
                   <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                    Busqueda: {search}
+                    Búsqueda: {search}
                   </span>
                 ) : null}
               </div>

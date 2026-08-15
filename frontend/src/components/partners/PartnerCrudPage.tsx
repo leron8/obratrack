@@ -443,26 +443,15 @@ export function PartnerCrudPage({
             metric={`${inactiveCount} inactivos en el catalogo.`}
           />
           <KpiCard
-            label="Cobertura de contacto"
+            label="Número de contactos filtrados"
             value={String(contactCoverage)}
-            metric={`${partners.length} registros cargados desde el backend.`}
+            metric=""
           />        </div>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Catalogo registrado</p>
               <h2 className="mt-2 text-xl font-semibold text-white">{title}</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Revisa razon social, datos de contacto y estatus sin salir de la tabla.
-              </p>
-              {companyId ? (
-                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">
-                  Selecciona una empresa desde el encabezado para cargar el catalogo en la tabla.
-                </p>
-              )}
             </div>
             <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
               <div className="flex flex-wrap justify-end gap-2">

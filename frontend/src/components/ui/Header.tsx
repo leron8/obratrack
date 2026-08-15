@@ -50,7 +50,7 @@ export function Header({ eyebrow, title, description }: HeaderProps) {
 
       <div className="grid w-full gap-3 lg:w-auto lg:min-w-[340px]">
         <div className="rounded-3xl border border-slate-800 bg-slate-950 px-4 py-3 shadow-soft">
-          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Active company</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Empresa actual</p>
           <div className="relative mt-2">
             <select
               value={activeCompany?.id ?? ""}
@@ -67,7 +67,7 @@ export function Header({ eyebrow, title, description }: HeaderProps) {
             <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            {switchingCompany ? "Switching company..." : activeCompany ? `Role: ${roleLabel}` : "No company selected"}
+            {switchingCompany ? "Cambiando de empresa..." : activeCompany ? `Perfil: ${roleLabel}` : "Sin empresa seleccionada"}
           </p>
         </div>
       </div>
@@ -79,7 +79,7 @@ export function Header({ eyebrow, title, description }: HeaderProps) {
           </span>
           <div className="text-left">
             <p className="text-sm font-medium text-white">{user?.full_name || user?.email || "Authenticated user"}</p>
-            <p className="text-xs text-slate-500">{activeRole ? roleLabel : "No role assigned"}</p>
+            <p className="text-xs text-slate-500">{activeRole ? roleLabel : "Sin rol asignado"}</p>
           </div>
         </div>
         <button

@@ -450,31 +450,16 @@ export function MovementCrudPage({
         <div className="grid gap-4 xl:grid-cols-2">
           <KpiCard label={totalLabel} value={formatMoney(totalAmount, displayCurrency)} metric={totalHint} />
           <KpiCard
-            label="Registros cargados"
+            label="Registros"
             value={String(movements.length)}
-            metric={
-              deferredSearch
-                ? `${filteredMovements.length} registros coinciden con tu busqueda actual.`
-                : "Ultimos registros del backend listos para editar."
-            }
+            metric=""
           />
         </div>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Registros recientes</p>
               <h2 className="mt-2 text-xl font-semibold text-white">{title}</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Edita o elimina cualquier fila directamente, con paginacion para mantener el flujo ligero.
-              </p>
-              {companyId ? (
-                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">
-                  Selecciona una empresa desde el encabezado para cargar los registros mas recientes en la tabla.
-                </p>
-              )}
             </div>
             <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
               <div className="flex flex-wrap justify-end gap-2">

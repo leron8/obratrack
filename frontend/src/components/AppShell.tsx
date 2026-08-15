@@ -35,7 +35,7 @@ export default function AppShell({ children, eyebrow, title, description }: AppS
   }
 
   if (!isAuthenticated || !canAccessPath(pathname)) {
-    return <AuthLoadingScreen title="Opening your workspace" description="Checking your session and permissions." />;
+    return <AuthLoadingScreen title="Abriendo tu espacio de trabajo" description="Verificando sesión y permisos" />;
   }
 
   return (

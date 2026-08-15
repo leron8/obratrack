@@ -428,9 +428,9 @@ export function ProjectCrudPage() {
 
   return (
     <AppShell
-      eyebrow="Obras"
-      title="Catalogo de proyectos"
-      description="Administra las obras activas y terminadas desde una sola tabla, con alta, edicion y baja logica siguiendo el mismo flujo del modulo de ingresos."
+      eyebrow=""
+      title="OBRAS REGISTRADAS"
+      description=""
     >
       <div className="space-y-6">
         {error ? (
@@ -448,24 +448,13 @@ export function ProjectCrudPage() {
           <KpiCard
             label="Presupuesto total"
             value={formatMoney(totalBudget, "MXN")}
-            metric={`${projects.length} obras cargadas desde el backend.`}
+            metric={`${projects.length} obras.`}
           />        </div>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Obras registradas</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Catalogo de proyectos</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Revisa el estado de cada obra y entra a editar o eliminar sin salir de la tabla.
-              </p>
-              {companyId ? (
-                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">
-                  Selecciona una empresa desde el encabezado para cargar las obras mas recientes en la tabla.
-                </p>
-              )}
+              <h2 className="mt-2 text-xl font-semibold text-white">Catalogo</h2>
             </div>
             <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
               <div className="flex flex-wrap justify-end gap-2">

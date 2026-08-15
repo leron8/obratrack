@@ -5,9 +5,9 @@ export function SupplierCrudPage() {
     <PartnerCrudPage
       partnerType="supplier"
       accent="amber"
-      eyebrow="Proveedores"
-      title="Catalogo de proveedores"
-      description="Centraliza tu directorio de proveedores con el mismo flujo de captura, edicion y baja logica que ya usamos para clientes y otras pantallas del sistema."
+      eyebrow=""
+      title="Proveedores"
+      description=""
       createLabel="Agregar proveedor"
       recordLabel="proveedor"
       searchPlaceholder="Nombre, RFC, contacto..."

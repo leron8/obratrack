@@ -410,9 +410,9 @@ export function VehicleCrudPage() {
 
   return (
     <AppShell
-      eyebrow="Vehiculos"
-      title="Catalogo de vehiculos"
-      description="Administra las unidades de la empresa con una tabla clara, asignacion rapida a obra y responsable, y el mismo flujo de alta, edicion y baja logica que en los otros modulos."
+      eyebrow=""
+      title="Vehículos"
+      description=""
     >
       <div className="space-y-6">
         {error ? (
@@ -430,24 +430,13 @@ export function VehicleCrudPage() {
           <KpiCard
             label="Valor de compra"
             value={formatMoney(totalPurchaseValue, "MXN")}
-            metric={`${vehicles.length} unidades cargadas desde el backend.`}
+            metric=""
           />        </div>
 
         <Card>
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Unidades registradas</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Catalogo de vehiculos</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Revisa estatus, compra y asignacion de cada unidad sin salir de la tabla.
-              </p>
-              {companyId ? (
-                <p className="mt-2 text-xs text-slate-500">Empresa activa: {activeCompany?.name ?? companyId}</p>
-              ) : (
-                <p className="mt-2 text-xs text-slate-500">
-                  Selecciona una empresa desde el encabezado para cargar las unidades en la tabla.
-                </p>
-              )}
+              <h2 className="mt-2 text-xl font-semibold text-white">Unidades registradas</h2>
             </div>
             <div className="flex w-full min-w-0 flex-col items-end gap-3 lg:flex-1">
               <div className="flex flex-wrap justify-end gap-2">
@@ -634,7 +623,7 @@ export function VehicleCrudPage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Valor de compra</label>
+            <label className="text-sm font-medium text-slate-300">Valor de la unidad</label>
             <MoneyInput
               value={form.purchase_value}
               onChange={(value) => setForm((current) => ({ ...current, purchase_value: value }))}

@@ -31,7 +31,7 @@ export function Sidebar() {
     <aside className="hidden h-full w-full max-w-[280px] shrink-0 border-r border-slate-800 bg-slate-950 px-5 py-6 lg:block">
       <div className="mb-10">
         <div className="mb-3 text-sm uppercase tracking-[0.3em] text-slate-500">ObraTrack</div>
-        <div className="text-2xl font-semibold text-slate-100">SaaS de construccion</div>
+        <div className="text-2xl font-semibold text-slate-100">Sistema para constructoras</div>
       </div>
 
       <nav className="space-y-1">

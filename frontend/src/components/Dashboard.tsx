@@ -114,9 +114,9 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="grid gap-4 rounded-[32px] border border-slate-800 bg-slate-950 p-5 shadow-soft md:grid-cols-[1.4fr_0.8fr_0.8fr]">
         <div className="space-y-2">
-          <p className="text-sm text-cyan-300">Active company</p>
+          <p className="text-sm text-cyan-300">Empresa activa</p>
           <p className="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100">
-            {activeCompany?.name ?? "No company selected"}
+            {activeCompany?.name ?? "Sin empresa activa"}
           </p>
         </div>
         <div className="space-y-2">
@@ -127,7 +127,7 @@ export default function Dashboard() {
           onClick={() => void load()}
           className="h-14 w-full rounded-3xl bg-cyan-500 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
         >
-          Refresh dashboard
+          Refrescar información
         </button>
       </div>
 
@@ -206,7 +206,7 @@ export default function Dashboard() {
           <div className="space-y-3">
             {movements.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-800 bg-slate-950 p-8 text-center text-slate-500">
-                No se encontro actividad reciente.
+                No se encontró actividad reciente.
               </div>
             ) : (
               movements.map((t) => {
